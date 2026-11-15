@@ -394,7 +394,7 @@ const neblinaBase = () => 0.008 + E.amb.neblina * 0.085;
 // Ponto que as luzes miram: o personagem selecionado ou, sem seleção, o grupo que está no quadro.
 function referenciaLuz() {
   const s = item(E.sel);
-  let grupo = s && s.tipo === 'boneco' ? [s] : bonecos().filter((b) => b.obj.visible && noQuadro(cabecaMundo(b)).dentro);
+  let grupo = s && s.tipo === 'boneco' ? [s] : bonecos().filter((b) => b.obj.visible && bonecoNoQuadro(b).dentro);
   if (!grupo.length) grupo = bonecos().slice(0, 1);
   const cabecas = grupo.map((b) => cabecaMundo(b));
   const centro = new THREE.Vector3(0, 1.5, 0);
@@ -760,15 +760,25 @@ function noQuadro(p) {
   const dentro = v.z < 1 && Math.abs(v.x) < 1.08 && Math.abs(v.y) < 1.25;
   return { dentro, x: v.x, posicao: v.x < -0.3 ? 'left' : v.x > 0.3 ? 'right' : 'center' };
 }
+// Um personagem está em quadro se qualquer parte principal do corpo aparece (um plano só de pernas ou de mãos também conta).
+function bonecoNoQuadro(b) {
+  filmCam.updateMatrixWorld(true);
+  const cabeca = cabecaMundo(b), J = b.ctl.juntas;
+  const pontos = [cabeca, ...['peito', 'quadril', 'joelhoE', 'joelhoD', 'peE', 'peD', 'punhoE', 'punhoD'].map((j) => J[j].getWorldPosition(new THREE.Vector3()))].map(noQuadro);
+  const visto = pontos.find((q) => q.dentro);
+  return { dentro: !!visto, cabecaDentro: pontos[0].dentro, x: (visto || pontos[0]).x, posicao: (visto || pontos[0]).posicao, cabeca };
+}
 export function classificarPlano() {
   const o = optica(E.cam);
-  const vis = bonecos().filter((b) => b.obj.visible).map((b) => ({ b, p: cabecaMundo(b) })).map((x) => ({ ...x, q: noQuadro(x.p) })).filter((x) => x.q.dentro);
+  const vis = bonecos().filter((b) => b.obj.visible).map((b) => { const q = bonecoNoQuadro(b); return { b, p: q.cabeca, q }; }).filter((x) => x.q.dentro);
   if (!vis.length) return { sigla: 'PG', nome: 'Plano geral', en: 'wide establishing shot', n: 0 };
   vis.sort((a, b) => Math.abs(a.q.x) - Math.abs(b.q.x));
   const d = vis[0].p.distanceTo(filmCam.position);
   const razao = (2 * d * Math.tan(rad(o.fovV) / 2)) / (vis[0].b.ctl.altura * vis[0].b.obj.scale.y);
   const faixas = [[3.2, 'gpg'], [1.75, 'pg'], [1.1, 'pi'], [0.78, 'pa'], [0.5, 'pm'], [0.35, 'pmc'], [0.22, 'pp'], [0.12, 'close'], [0, 'det']];
   const id = faixas.find((f) => razao >= f[0])[1];
+  // cabeça fora do quadro: os nomes de plano (que contam a partir do rosto) não servem
+  if (!vis[0].q.cabecaDentro) return { ...TAMANHOS.find((t) => t.id === 'det'), nome: 'Detalhe do corpo', en: 'cropped shot of part of the body, the head is out of frame', n: vis.length, razao };
   return { ...TAMANHOS.find((t) => t.id === id), n: vis.length, razao };
 }
 function nomeCor(hex) {
@@ -780,7 +790,7 @@ function nomeCor(hex) {
 export function resumoCena() {
   const c = E.cam, o = optica(c), T = classificarPlano();
   const personagens = bonecos().filter((b) => b.obj.visible).map((b) => {
-    const q = noQuadro(cabecaMundo(b));
+    const q = bonecoNoQuadro(b);
     return { cor: (CORES_BONECO.find((x) => x.hex === b.cor) || { en: 'colored' }).en, descricao: (b.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro, pose: POSE_EN[b.poseId] || 'in the pose shown', x: q.x };
   }).sort((a, b) => a.x - b.x);
   const elementos = E.itens.filter((i) => i.tipo === 'elemento' && i.obj.visible).map((e) => {

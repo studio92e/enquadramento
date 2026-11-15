@@ -358,7 +358,7 @@ function renderLuz() {
 
 // ---------- painel: gerar ----------
 let gerando = false, temChave = false, hospedado = false, semServidor = false, historico = [];
-const AVISO_ESTATICO = 'Esta versão publicada não gera imagem: a ponte com o Magnific só roda no computador do estúdio. Use "Baixar quadro" e "Copiar prompt" para gerar em outra ferramenta.';
+const AVISO_ESTATICO = 'Esta versão publicada não gera a imagem sozinha (a ponte com o Magnific só roda no computador do estúdio). O botão abaixo baixa o quadro e copia o prompt para você gerar em outra ferramenta.';
 const modeloAtual = () => MODELOS.find((m) => m.id === E.ger.modelo) || MODELOS[0];
 function promptAtual() {
   if (E.ger.manual != null) return E.ger.manual;
@@ -407,7 +407,7 @@ function renderGer() {
     secao('Prompt que será enviado',
       el('textarea', { id: 'promptFinal', class: 'prompt', readOnly: g.manual == null, spellcheck: false, value: promptAtual(), oninput: (e) => { if (g.manual != null) g.manual = e.target.value; } }),
       check('Editar o prompt à mão', g.manual != null, (v) => { g.manual = v ? promptAtual() : null; renderGer(); })),
-    el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Gerar imagem (só no computador do estúdio)' : 'Gerar imagem'),
+    el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Baixar quadro e copiar prompt' : 'Gerar imagem'),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
@@ -421,7 +421,15 @@ function baixarQuadro() {
 async function gerar() {
   if (gerando) return;
   pararNarracao();
-  if (semServidor) { N.aviso(AVISO_ESTATICO, false, 9000); estado(AVISO_ESTATICO, 'erro'); return; }
+  if (semServidor) {
+    // sem servidor não dá para gerar aqui: entrega o quadro e o prompt do mesmo instante, para usar em outra ferramenta
+    pararNarracao();
+    const texto = promptAtual();
+    baixarQuadro();
+    try { await navigator.clipboard.writeText(texto); estado('Quadro baixado e prompt copiado, os dois deste mesmo enquadramento. Cole numa ferramenta de imagem ou mande para o Claude gerar.', 'ok'); }
+    catch { estado('Quadro baixado. Não consegui copiar o prompt sozinho: toque em "Copiar prompt".', 'erro'); }
+    return;
+  }
   if (!temChave) return abrirChave();
   const g = E.ger, prompt = promptAtual();
   if (!g.texto.trim() && g.manual == null) { estado('Escreva como é a cena antes de gerar.', 'erro'); return; }
