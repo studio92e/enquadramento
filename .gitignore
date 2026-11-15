@@ -1,0 +1,6 @@
+node_modules/
+.env
+geracoes/
+publicar/site/
+publicar/.acesso.txt
+.wrangler/

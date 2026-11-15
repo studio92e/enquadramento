@@ -1,0 +1,14 @@
+{
+  "name": "enquadramento",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simulador de enquadramento de cinema no navegador: bonecos, câmera, lente, luz e geração de imagem pelo Magnific.",
+  "scripts": {
+    "start": "node server.js",
+    "docs": "node publicar/montar.mjs docs"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "three": "0.187.0"
+  }
+}

@@ -1,0 +1,20 @@
+# Enquadramento no ar: Worker do Cloudflare com o app (site/) e a ponte do Magnific.
+# Publicar: node publicar.mjs   (roda nesta pasta; pede "npx wrangler login" se a conta não estiver ligada)
+name = "enquadramento"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+[assets]
+directory = "./site"
+binding = "ASSETS"
+
+# Galeria, histórico e tarefas em andamento. O publicar.mjs cria o espaço e troca o id abaixo na primeira vez.
+[[kv_namespaces]]
+binding = "DADOS"
+id = "COLOCAR_ID_DO_KV"
+
+# Endereço no domínio do estúdio. O Cloudflare cria o registro de DNS sozinho.
+[[routes]]
+pattern = "enquadramento.studio91.com.br"
+custom_domain = true

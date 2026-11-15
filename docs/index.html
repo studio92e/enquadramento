@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16171a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Enquadramento</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141518'/%3E%3Crect x='5' y='9' width='22' height='14' rx='1.5' fill='none' stroke='%23f2a93b' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23f2a93b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<header id="topo">
+  <div class="marca"><svg viewBox="0 0 24 24" width="18" height="18"><rect x="2.5" y="6" width="19" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/></svg>Enquadramento</div>
+
+  <div class="seg" id="vistas" title="Trocar a vista principal (Tab)">
+    <button data-vista="camera">Câmera</button>
+    <button data-vista="cena">Cena</button>
+  </div>
+
+  <div class="seg" id="modos">
+    <button data-modo="translate" title="Mover (W)">Mover</button>
+    <button data-modo="rotate" title="Girar (E)">Girar</button>
+    <button data-modo="scale" title="Escalar (R)">Escalar</button>
+  </div>
+  <button class="alt" id="btPosar" title="Clicar numa parte do corpo e girar a junta (P)">Posar</button>
+
+  <div class="esp"></div>
+
+  <div class="seg fino" id="guias" title="Guias do quadro">
+    <button data-guia="tercos">Terços</button>
+    <button data-guia="seguranca">Margens</button>
+    <button data-guia="centro">Centro</button>
+    <button data-guia="grade">Grade</button>
+  </div>
+
+  <div class="seg fino">
+    <button id="btDesfazer" title="Desfazer (Ctrl+Z)">↶</button>
+    <button id="btRefazer" title="Refazer (Ctrl+Y)">↷</button>
+  </div>
+  <div class="seg fino">
+    <button id="btNova" title="Começar uma cena nova">Nova</button>
+    <button id="btAbrir" title="Abrir um arquivo de cena (.json)">Abrir</button>
+    <button id="btSalvar" title="Salvar a cena num arquivo (.json)">Salvar</button>
+  </div>
+  <button id="btMagnific" title="Configurar a chave da API do Magnific"><i class="led"></i>Magnific</button>
+</header>
+
+<main>
+  <aside id="esq">
+    <section>
+      <h3>Personagens</h3>
+      <div class="grade3" id="addBonecos"></div>
+    </section>
+    <section>
+      <h3>Elementos</h3>
+      <div class="grade2" id="addElementos"></div>
+      <div class="grade2 topo6">
+        <button id="btImagem" title="Colocar uma imagem (PNG, JPG) como painel na cena">＋ Imagem</button>
+        <button id="btModelo" title="Importar um modelo 3D (.glb)">＋ Modelo 3D</button>
+      </div>
+    </section>
+    <section>
+      <h3>Luzes</h3>
+      <div class="grade2" id="addLuzes"></div>
+    </section>
+    <section class="cresce">
+      <h3>Na cena</h3>
+      <div id="lista"></div>
+    </section>
+  </aside>
+
+  <section id="centro">
+    <div id="palco">
+      <div id="quadro">
+        <svg id="guiasSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+      </div>
+      <button id="pip" title="Clique para trocar de vista"><canvas width="520" height="390"></canvas><span id="pipNome">Planta</span></button>
+      <div id="dica"></div>
+      <div id="avisos"></div>
+    </div>
+    <div id="hud"></div>
+    <div id="planos"></div>
+  </section>
+
+  <aside id="dir">
+    <nav id="abas">
+      <button data-aba="add" class="so-celular">Cena</button>
+      <button data-aba="sel">Seleção</button>
+      <button data-aba="cam">Câmera</button>
+      <button data-aba="luz">Luz</button>
+      <button data-aba="ger">Gerar</button>
+    </nav>
+    <div class="painel" id="p-sel"></div>
+    <div class="painel" id="p-cam"></div>
+    <div class="painel" id="p-luz"></div>
+    <div class="painel" id="p-ger"></div>
+  </aside>
+</main>
+
+<dialog id="dlgChave">
+  <form method="dialog">
+    <h2>Ligação com o Magnific</h2>
+    <p id="chaveOnde">Cole aqui a chave da API. Ela fica salva só neste computador (arquivo <code>.env</code> na pasta do programa) e nunca aparece na página.</p>
+    <p class="fraco">A chave é criada em magnific.com → conta → API Keys.</p>
+    <input id="inChave" type="password" placeholder="Chave da API do Magnific" autocomplete="off" spellcheck="false">
+    <p id="chaveEstado" class="fraco"></p>
+    <menu>
+      <button value="cancelar">Fechar</button>
+      <button id="btSalvarChave" value="salvar" class="primario" type="button">Salvar chave</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlgAcesso">
+  <form method="dialog">
+    <h2>Senha de acesso</h2>
+    <p>Gerar imagens gasta créditos do Magnific do estúdio, por isso esta parte pede a senha de acesso. Ela fica guardada neste aparelho.</p>
+    <input id="inAcesso" type="password" placeholder="Senha de acesso" autocomplete="current-password" spellcheck="false">
+    <p id="acessoEstado" class="fraco"></p>
+    <menu>
+      <button value="cancelar">Cancelar</button>
+      <button id="btEntrar" value="entrar" class="primario" type="button">Entrar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlgImg">
+  <div class="visor">
+    <img id="imgGrande" alt="">
+    <aside>
+      <div class="seg" id="imgAlterna"><button data-ver="gerada">Gerada</button><button data-ver="quadro">Quadro</button></div>
+      <p id="imgMeta" class="fraco"></p>
+      <pre id="imgPrompt"></pre>
+      <menu>
+        <a id="imgBaixar" class="botao" download>Baixar</a>
+        <button id="imgFechar" class="primario">Fechar</button>
+      </menu>
+    </aside>
+  </div>
+</dialog>
+
+<input type="file" id="arqImagem" accept="image/*" hidden>
+<input type="file" id="arqModelo" accept=".glb,.gltf" hidden>
+<input type="file" id="arqCena" accept=".json" hidden>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

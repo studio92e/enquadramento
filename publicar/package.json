@@ -1,0 +1,10 @@
+{
+  "name": "enquadramento-publicar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "montar": "node montar.mjs",
+    "simular": "node simular.mjs",
+    "publicar": "node publicar.mjs"
+  }
+}
