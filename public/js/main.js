@@ -434,6 +434,7 @@ function renderGer() {
     el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Baixar quadro e copiar prompt' : 'Gerar imagem'),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
+    el('p', { class: 'nota versao' }, 'Versão do app: ' + ((document.querySelector('meta[name=versao]') || {}).content || 'local')),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
   p.scrollTop = topo;
   atualizarNarracao(); atualizarPrompt();

@@ -6,10 +6,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { criarBoneco, BIOTIPOS, CORES_BONECO, POSES } from './manequim.js';
-import { criarElemento, CATALOGO, NOME_EN } from './elementos.js';
-import { criarLuz, TIPOS_LUZ, PADRAO_LUZ, PRESETS_LUZ } from './luzes.js';
-import { optica, TAMANHOS, SENSORES, SUPORTES, PROPORCOES } from './cameras.js';
+import { criarBoneco, BIOTIPOS, CORES_BONECO, POSES } from './manequim.js?v=1794780847';
+import { criarElemento, CATALOGO, NOME_EN } from './elementos.js?v=1794780847';
+import { criarLuz, TIPOS_LUZ, PADRAO_LUZ, PRESETS_LUZ } from './luzes.js?v=1794780847';
+import { optica, TAMANHOS, SENSORES, SUPORTES, PROPORCOES } from './cameras.js?v=1794780847';
 
 export const rad = THREE.MathUtils.degToRad, grau = THREE.MathUtils.radToDeg, clamp = THREE.MathUtils.clamp;
 const uid = () => Math.random().toString(36).slice(2, 9);

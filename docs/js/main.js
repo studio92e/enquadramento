@@ -1,11 +1,11 @@
 // Interface: barra, lista da cena e os quatro painéis (Seleção, Câmera, Luz, Gerar).
 import * as THREE from 'three';
-import * as N from './nucleo.js';
-import { BIOTIPOS, CORES_BONECO, POSES, JUNTAS } from './manequim.js';
-import { CATALOGO } from './elementos.js';
-import { TIPOS_LUZ, PRESETS_LUZ, kelvinParaCor, nomeTemperatura } from './luzes.js';
-import { SENSORES, PROPORCOES, FOCAIS, DIAFRAGMAS, ANAMORFICAS, SUPORTES, TAMANHOS, DIRECOES, ALTURAS } from './cameras.js';
-import { ESTILOS, MODELOS, montarPrompt, api, acesso } from './gerar.js';
+import * as N from './nucleo.js?v=1794780847';
+import { BIOTIPOS, CORES_BONECO, POSES, JUNTAS } from './manequim.js?v=1794780847';
+import { CATALOGO } from './elementos.js?v=1794780847';
+import { TIPOS_LUZ, PRESETS_LUZ, kelvinParaCor, nomeTemperatura } from './luzes.js?v=1794780847';
+import { SENSORES, PROPORCOES, FOCAIS, DIAFRAGMAS, ANAMORFICAS, SUPORTES, TAMANHOS, DIRECOES, ALTURAS } from './cameras.js?v=1794780847';
+import { ESTILOS, MODELOS, montarPrompt, api, acesso } from './gerar.js?v=1794780847';
 
 const { E, H, rad, grau, clamp } = N;
 const $ = (s, r = document) => r.querySelector(s);
@@ -434,6 +434,7 @@ function renderGer() {
     el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Baixar quadro e copiar prompt' : 'Gerar imagem'),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
+    el('p', { class: 'nota versao' }, 'Versão do app: ' + ((document.querySelector('meta[name=versao]') || {}).content || 'local')),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
   p.scrollTop = topo;
   atualizarNarracao(); atualizarPrompt();

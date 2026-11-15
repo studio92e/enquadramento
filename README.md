@@ -18,14 +18,14 @@ A versão publicada no GitHub Pages tem tudo menos a geração de imagem, que de
 
 ## Rodar no computador (com geração de imagem)
 
-Precisa do [Node.js](https://nodejs.org) 20 ou mais novo.
+Precisa do [Node.js](https://nodejs.org) 22.15 ou mais novo (por causa da opção `--use-system-ca`).
 
 ```
 npm install
 npm start
 ```
 
-Abra http://localhost:4747. No Windows, o `Abrir Enquadramento.bat` faz os dois passos finais (ligar o servidor e abrir o Chrome).
+Abra http://localhost:4747. O `npm start` liga o Node com `--use-system-ca` (certificados do Windows): sem isso, em máquina com antivírus que inspeciona HTTPS, parte das chamadas ao Magnific falha com "fetch failed". No Windows, o `Abrir Enquadramento.bat` faz os dois passos finais (ligar o servidor e abrir o Chrome).
 
 Para gerar imagem, clique em **Magnific** no topo e cole a chave da API. Ela fica no arquivo `.env` desta pasta, que não vai para o GitHub. Cada geração gasta créditos da conta.
 

@@ -15,6 +15,22 @@ fs.rmSync(SITE, { recursive: true, force: true });
 fs.cpSync(PUB, SITE, { recursive: true });
 fs.writeFileSync(path.join(SITE, '.nojekyll'), '');
 
+// Carimbo da montagem: vai no nome de cada arquivo pedido, para o navegador não reaproveitar script antigo em cache.
+const agora = new Date(), z = (n) => String(n).padStart(2, '0');
+const VERSAO = `${z(agora.getDate())}/${z(agora.getMonth() + 1)} ${z(agora.getHours())}:${z(agora.getMinutes())}`;
+const CARIMBO = String(Math.floor(agora.getTime() / 1000));
+{
+  const idx = path.join(SITE, 'index.html');
+  fs.writeFileSync(idx, fs.readFileSync(idx, 'utf8')
+    .replace('<meta name="versao" content="local">', `<meta name="versao" content="${VERSAO}">`)
+    .replace('href="css/app.css"', `href="css/app.css?v=${CARIMBO}"`)
+    .replace('src="js/main.js"', `src="js/main.js?v=${CARIMBO}"`));
+  for (const arq of fs.readdirSync(path.join(SITE, 'js'))) {
+    const p = path.join(SITE, 'js', arq);
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(/from '\.\/([\w-]+)\.js'/g, `from './$1.js?v=${CARIMBO}'`));
+  }
+}
+
 // segue os imports a partir dos arquivos do app
 const IMPORT = /(?:from\s*|import\s*)['"]([^'"]+)['"]/g;
 const feitos = new Set();
@@ -40,4 +56,4 @@ function seguir(codigo, deRel) {
 for (const arq of fs.readdirSync(path.join(PUB, 'js'))) if (arq.endsWith('.js')) seguir(fs.readFileSync(path.join(PUB, 'js', arq), 'utf8'), null);
 
 const tamanho = (dir) => fs.readdirSync(dir, { withFileTypes: true }).reduce((s, e) => s + (e.isDirectory() ? tamanho(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).size), 0);
-console.log(`${path.relative(RAIZ, SITE)}/ montado: ${feitos.size} arquivos do three.js, ${(tamanho(SITE) / 1048576).toFixed(1)} MB no total.`);
+console.log(`versão ${VERSAO} — ${path.relative(RAIZ, SITE)}/ montado: ${feitos.size} arquivos do three.js, ${(tamanho(SITE) / 1048576).toFixed(1)} MB no total.`);
