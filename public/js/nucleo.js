@@ -758,7 +758,7 @@ const POSE_EN = { empe: 'standing', andando: 'walking', correndo: 'running', sen
 function noQuadro(p) {
   const v = p.clone().project(filmCam);
   const dentro = v.z < 1 && Math.abs(v.x) < 1.08 && Math.abs(v.y) < 1.25;
-  return { dentro, x: v.x, posicao: v.x < -0.3 ? 'left' : v.x > 0.3 ? 'right' : 'center' };
+  return { dentro, x: v.x, posicao: v.x < -0.38 ? 'left' : v.x < -0.07 ? 'center-left' : v.x > 0.38 ? 'right' : v.x > 0.07 ? 'center-right' : 'center' };
 }
 // Um personagem está em quadro se qualquer parte principal do corpo aparece (um plano só de pernas ou de mãos também conta).
 function bonecoNoQuadro(b) {

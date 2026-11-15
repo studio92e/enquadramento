@@ -539,7 +539,7 @@ let melhorando = false;
 // O que vai para o melhorador: a narração e, em seguida, o que a cena 3D já define (para ele não inventar outra câmera).
 function contextoDaCena(narracao) {
   const r = N.resumoCena(), T = N.classificarPlano(), c = E.cam;
-  const onde = { left: 'à esquerda', center: 'no centro', right: 'à direita' };
+  const onde = { left: 'à esquerda', 'center-left': 'ao centro, mais à esquerda', center: 'no centro', 'center-right': 'ao centro, mais à direita', right: 'à direita' };
   const linhas = [];
   const pers = r.personagens.filter((p) => p.noQuadro && p.descricao).map((p) => `${onde[p.posicao]}, ${p.descricao}`);
   if (pers.length) linhas.push('Personagens em quadro: ' + pers.join('; ') + '.');
