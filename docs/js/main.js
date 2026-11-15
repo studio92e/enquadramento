@@ -190,7 +190,7 @@ function renderSel() {
     por(p, 
       secao('Personagem',
         texto('Nome', it.nome, (v) => { it.nome = v; renderLista(); }),
-        area('Quem é (entra no prompt)', it.descricao, (v) => { it.descricao = v; }, 'Ex.: mulher de 30 anos, cabelo preso, casaco vermelho'),
+        area('Quem é (entra no prompt)', it.descricao, (v) => { it.descricao = v; soltarManual(); }, 'Ex.: mulher de 30 anos, cabelo preso, casaco vermelho'),
         seletor('Biotipo', Object.entries(BIOTIPOS).map(([k, b]) => [k, b.nome]), it.biotipo, (v) => { N.reconstruir(it, { biotipo: v, altura: BIOTIPOS[v].altura }); N.selecionar(it.id, E.junta, false); N.commit(); }),
         slider('Altura', { min: 0.8, max: 2.2, passo: 0.01, valor: it.altura, un: 'm', mudar: (v) => { it.altura = v; it.ctl.setAltura(v); } }),
         el('div', { class: 'cores' }, CORES_BONECO.map((c) => el('button', { class: c.hex === it.cor ? 'ativo' : '', title: c.id, style: { background: c.hex }, onclick: () => { it.cor = c.hex; it.ctl.setCor(c.hex); renderSel(); renderLista(); N.commit(); } })))),
@@ -214,7 +214,7 @@ function renderSel() {
     por(p, 
       secao('Elemento',
         texto('Nome', it.nome, (v) => { it.nome = v; renderLista(); }),
-        area('O que é (entra no prompt)', it.descricao, (v) => { it.descricao = v; }, 'Ex.: mesa de madeira gasta com papéis e um abajur'),
+        area('O que é (entra no prompt)', it.descricao, (v) => { it.descricao = v; soltarManual(); }, 'Ex.: mesa de madeira gasta com papéis e um abajur'),
         o.userData.semCor ? null : cor('Cor', it.cor, (v) => { it.cor = v; o.userData.mat.color.set(v); renderLista(); })),
       secao('Tamanho',
         slider('Geral', { min: 0.1, max: 6, passo: 0.01, valor: clamp(o.scale.y, 0.1, 6), un: '×', mudar: (v) => { const k = v / o.scale.y; o.scale.multiplyScalar(k); } , fim: () => { renderSel(); N.commit(); } }),
@@ -360,14 +360,30 @@ function renderLuz() {
 let gerando = false, temChave = false, hospedado = false, semServidor = false, historico = [];
 const AVISO_ESTATICO = 'Esta versão publicada não gera a imagem sozinha (a ponte com o Magnific só roda no computador do estúdio). O botão abaixo baixa o quadro e copia o prompt para você gerar em outra ferramenta.';
 const modeloAtual = () => MODELOS.find((m) => m.id === E.ger.modelo) || MODELOS[0];
-function promptAtual() {
+function promptAtual(r = N.resumoCena()) {
   if (E.ger.manual != null) return E.ger.manual;
-  return montarPrompt(N.resumoCena(), { texto: E.ger.texto, estilo: E.ger.estilo, modo: modeloAtual().modo, tecnico: E.ger.tecnico });
+  return montarPrompt(r, { texto: E.ger.texto, estilo: E.ger.estilo, modo: modeloAtual().modo, tecnico: E.ger.tecnico });
 }
 function atualizarPrompt() {
-  const t = $('#promptFinal');
-  if (t && E.ger.manual == null && document.activeElement !== t) t.value = promptAtual();
+  const r = N.resumoCena(), t = $('#promptFinal');
+  if (t && E.ger.manual == null && document.activeElement !== t) t.value = promptAtual(r);
+  // avisa, ao lado de cada campo, quem ficou fora do quadro (e por isso não entra no prompt)
+  for (const lista of [r.personagens, r.elementos]) for (const x of lista) {
+    const n = document.getElementById('fora-' + x.id);
+    if (n) n.textContent = x.noQuadro ? '' : 'Fora do quadro agora: não entra no prompt.';
+  }
 }
+// Qualquer mudança em cena, personagens ou estilo devolve o prompt ao automático: ele nunca fica preso num texto antigo.
+function soltarManual() {
+  if (E.ger.manual == null) return;
+  E.ger.manual = null;
+  const t = $('#promptFinal'), c = $('#chkManual input');
+  if (t) { t.readOnly = true; t.classList.remove('travado'); }
+  if (c) c.checked = false;
+  const a = $('#avisoManual'); if (a) a.textContent = '';
+  N.aviso('O prompt voltou ao automático para incluir o que você mudou.');
+}
+function mudouCena() { soltarManual(); atualizarPrompt(); }
 function estado(txt, tipo = '') {
   const e = $('#estadoGer'); if (!e) return;
   e.className = tipo; e.textContent = txt;
@@ -384,35 +400,41 @@ function renderGer() {
   if (M.id === 'gpt2') opcoes.push(
     seletor('Qualidade', [['low', 'Rascunho (mais barato)'], ['medium', 'Média'], ['high', 'Alta (custa mais)']], g.qualidade, (v) => { g.qualidade = v; N.commit(); }),
     seletor('Variações', [[1, '1 imagem'], [2, '2 imagens'], [3, '3 imagens'], [4, '4 imagens']], g.quantidade, (v) => { g.quantidade = +v; N.commit(); }));
-  const pers = N.bonecos();
+  const pers = N.bonecos(), elems = E.itens.filter((i) => i.tipo === 'elemento');
   por(p, 
     secao('A cena',
       campoCena(),
       fila(
         el('button', { id: 'btNarrar', onclick: narrar, title: 'Liga o microfone e escreve o que você falar' }, 'Narrar a cena'),
-        botao('Limpar', () => { g.texto = ''; g.textoOriginal = null; renderGer(); N.commit(); }, '', 'Apaga a descrição da cena')),
+        botao('Limpar', () => { E.ger.texto = ''; E.ger.textoOriginal = null; soltarManual(); renderGer(); N.commit(); }, '', 'Apaga a descrição da cena')),
       el('p', { id: 'narrandoTexto', class: 'nota' }),
       fila(
         el('button', { id: 'btMelhorar', disabled: melhorando, onclick: melhorarTexto, title: 'Reescreve o que você narrou como uma descrição de cena caprichada' }, melhorando ? 'Melhorando…' : 'Melhorar o texto'),
-        g.textoOriginal != null ? botao('Voltar ao meu texto', () => { g.texto = g.textoOriginal; g.textoOriginal = null; renderGer(); N.commit(); }, '', 'Desfaz a melhoria') : null),
+        g.textoOriginal != null ? botao('Voltar ao meu texto', () => { E.ger.texto = E.ger.textoOriginal; E.ger.textoOriginal = null; soltarManual(); renderGer(); N.commit(); }, '', 'Desfaz a melhoria') : null),
       nota('"Melhorar o texto" pega o que você narrou ou escreveu, junta com quem está em quadro, o plano, a lente e a luz, e devolve uma descrição mais rica. Dá para editar depois.'),
-      seletor('Estilo', ESTILOS.map((s) => [s.id, s.nome]), g.estilo, (v) => { g.estilo = v; atualizarPrompt(); N.commit(); })),
+      seletor('Estilo', ESTILOS.map((s) => [s.id, s.nome]), g.estilo, (v) => { E.ger.estilo = v; mudouCena(); N.commit(); })),
     pers.length ? secao('Quem é cada boneco',
-      pers.map((b) => el('label', { class: 'pers' }, el('i', { style: { background: b.cor } }),
-        el('input', { type: 'text', value: b.descricao || '', placeholder: b.nome + ': quem é, como está vestido', oninput: (e) => { b.descricao = e.target.value; atualizarPrompt(); }, onchange: () => N.commit() })))) : null,
+      pers.map((b) => [el('label', { class: 'pers' }, el('i', { style: { background: b.cor } }),
+        el('input', { type: 'text', value: b.descricao || '', placeholder: b.nome + ': quem é, como está vestido', oninput: (e) => { const it = N.item(b.id); if (it) it.descricao = e.target.value; mudouCena(); }, onchange: () => N.commit() })),
+        el('p', { class: 'nota fora', id: 'fora-' + b.id })])) : null,
+    elems.length ? secao('O que é cada elemento do cenário',
+      elems.map((x) => [el('label', { class: 'pers' }, el('i', { style: { background: x.cor || '#8d8a84', borderRadius: '2px' } }),
+        el('input', { type: 'text', value: x.descricao || '', placeholder: x.nome + ': o que é de verdade', oninput: (e) => { const it = N.item(x.id); if (it) it.descricao = e.target.value; mudouCena(); }, onchange: () => N.commit() })),
+        el('p', { class: 'nota fora', id: 'fora-' + x.id })])) : null,
     secao('Magnific',
       seletor('Modelo', MODELOS.map((m) => [m.id, m.nome]), g.modelo, (v) => { g.modelo = v; N.commit(); renderGer(); }),
       nota(M.nota), ...opcoes,
-      check('Descrever câmera e luz no prompt', g.tecnico, (v) => { g.tecnico = v; atualizarPrompt(); N.commit(); })),
+      check('Descrever câmera e luz no prompt', g.tecnico, (v) => { E.ger.tecnico = v; mudouCena(); N.commit(); })),
     secao('Prompt que será enviado',
-      el('textarea', { id: 'promptFinal', class: 'prompt', readOnly: g.manual == null, spellcheck: false, value: promptAtual(), oninput: (e) => { if (g.manual != null) g.manual = e.target.value; } }),
-      check('Editar o prompt à mão', g.manual != null, (v) => { g.manual = v ? promptAtual() : null; renderGer(); })),
+      el('textarea', { id: 'promptFinal', class: 'prompt' + (g.manual != null ? ' travado' : ''), readOnly: g.manual == null, spellcheck: false, value: promptAtual(), oninput: (e) => { if (E.ger.manual != null) E.ger.manual = e.target.value; } }),
+      el('div', { id: 'chkManual' }, check('Editar o prompt à mão', g.manual != null, (v) => { E.ger.manual = v ? promptAtual() : null; renderGer(); })),
+      el('p', { class: 'nota', id: 'avisoManual' }, g.manual != null ? 'Você está editando à mão: o prompt para de acompanhar a câmera. Se mudar a cena, os personagens ou o estilo, ele volta ao automático.' : '')),
     el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Baixar quadro e copiar prompt' : 'Gerar imagem'),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
   p.scrollTop = topo;
-  atualizarNarracao();
+  atualizarNarracao(); atualizarPrompt();
 }
 function baixarQuadro() {
   const a = el('a', { href: N.capturar(2048, 1, 'image/png'), download: 'quadro.png' });
@@ -455,7 +477,7 @@ async function gerar() {
 // Usa o reconhecimento de fala do próprio navegador (Chrome no computador e no Android). Precisa de internet.
 let rec = null, narrando = false, parcial = '';
 function campoCena() {
-  const c = area('', E.ger.texto, (v) => { E.ger.texto = v; atualizarPrompt(); }, 'Descreva ou narre a cena: lugar, época, hora do dia, clima, figurino, o que está acontecendo, o que cada um sente…');
+  const c = area('', E.ger.texto, (v) => { E.ger.texto = v; mudouCena(); }, 'Descreva ou narre a cena: lugar, época, hora do dia, clima, figurino, o que está acontecendo, o que cada um sente…');
   const t = c.querySelector('textarea'); t.id = 'textoCena'; t.rows = 6;
   return c;
 }
@@ -471,7 +493,7 @@ function acrescentarFala(fala) {
   E.ger.texto = base ? base + (/[.!?…:;,]$/.test(base) ? ' ' : '. ') + fala : fala;
   const a = $('#textoCena');
   if (a) { a.value = E.ger.texto; a.scrollTop = a.scrollHeight; }
-  atualizarPrompt();
+  mudouCena();
 }
 function pararNarracao() {
   if (!narrando) return;
@@ -538,7 +560,7 @@ async function melhorarTexto() {
   melhorando = true; renderGer(); estado('Melhorando o texto no Magnific…', 'girando');
   try {
     const r = await comAcesso(() => api.melhorar(contextoDaCena(meu)));
-    g.textoOriginal = meu; g.texto = r.texto;
+    E.ger.textoOriginal = meu; E.ger.texto = r.texto; soltarManual();
     melhorando = false; document.activeElement && document.activeElement.blur(); renderGer(); N.commit();
     estado('Texto melhorado. Leia e ajuste o que quiser; "Voltar ao meu texto" desfaz.', 'ok');
   } catch (e) {

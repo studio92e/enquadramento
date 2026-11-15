@@ -41,7 +41,7 @@ export function montarPrompt(r, { texto, estilo, modo, tecnico }) {
     });
     partes.push((modo === 'edicao' ? 'Characters: ' : 'Characters: ') + linhas.join('; ') + '.');
   }
-  const elems = r.elementos.filter((e) => e.descricao);
+  const elems = r.elementos.filter((e) => e.descricao && e.noQuadro);
   if (elems.length) partes.push('Set and props: ' + elems.map((e) => (modo === 'edicao' ? `the ${e.forma} proxy (${e.posicao} of frame) is ${e.descricao}` : e.descricao)).join('; ') + '.');
 
   if (tecnico) {

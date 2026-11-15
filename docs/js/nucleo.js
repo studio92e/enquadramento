@@ -630,7 +630,7 @@ export function carregar(d, manterSel = false) {
   E.itens = [];
   const P = PADRAO();
   E.cam = { ...P.cam, ...d.cam }; E.amb = { ...P.amb, ...d.amb }; E.guias = { ...P.guias, ...d.guias };
-  E.enq = { ...P.enq, ...d.enq }; E.planos = d.planos || []; E.ger = { ...P.ger, ...d.ger };
+  E.enq = { ...P.enq, ...d.enq }; E.planos = d.planos || []; E.ger = { ...P.ger, ...d.ger, manual: null };
   if (!SENSORES.some((s) => s.id === E.cam.sensor)) E.cam.sensor = 's35';
   for (const i of d.itens || []) { try { criarItem(i); } catch (e) { console.warn('Item ignorado', i, e); } }
   E.sel = sel === 'camera' || item(sel) ? sel : null; E.junta = E.sel ? junta : null;
@@ -791,12 +791,16 @@ export function resumoCena() {
   const c = E.cam, o = optica(c), T = classificarPlano();
   const personagens = bonecos().filter((b) => b.obj.visible).map((b) => {
     const q = bonecoNoQuadro(b);
-    return { cor: (CORES_BONECO.find((x) => x.hex === b.cor) || { en: 'colored' }).en, descricao: (b.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro, pose: POSE_EN[b.poseId] || 'in the pose shown', x: q.x };
+    return { id: b.id, cor: (CORES_BONECO.find((x) => x.hex === b.cor) || { en: 'colored' }).en, descricao: (b.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro, pose: POSE_EN[b.poseId] || 'in the pose shown', x: q.x };
   }).sort((a, b) => a.x - b.x);
   const elementos = E.itens.filter((i) => i.tipo === 'elemento' && i.obj.visible).map((e) => {
-    const q = noQuadro(centroItem(e));
-    return { forma: NOME_EN[e.forma] || 'object', descricao: (e.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro };
-  }).filter((e) => e.noQuadro);
+    // em quadro se o centro ou algum canto da caixa do elemento aparece
+    const caixa = new THREE.Box3().setFromObject(e.obj), c = caixa.getCenter(new THREE.Vector3());
+    const cantos = [c];
+    for (const x of [caixa.min.x, caixa.max.x]) for (const y of [caixa.min.y, caixa.max.y]) for (const z of [caixa.min.z, caixa.max.z]) cantos.push(new THREE.Vector3(x, y, z));
+    const vistos = cantos.map(noQuadro), q = vistos.find((v) => v.dentro) || vistos[0];
+    return { id: e.id, forma: NOME_EN[e.forma] || 'object', descricao: (e.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro };
+  });
 
   const angulo = c.tilt < -60 ? 'overhead top-down view' : c.tilt < -14 ? 'high angle looking down' : c.tilt > 14 ? 'low angle looking up' : c.pos[1] < 0.6 ? 'low camera near the ground, level horizon' : 'eye-level camera';
   const fundo = o.A * 0.66;

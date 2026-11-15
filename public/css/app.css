@@ -279,3 +279,10 @@ code { font: 11.5px var(--mono); background: var(--fundo); padding: 1px 5px; bor
 @keyframes pulsa { 50% { opacity: .25; transform: scale(.7); } }
 #narrandoTexto:empty { display: none; }
 #narrandoTexto.ouvindo { color: #ffd0c9; background: #2a1210; border: 1px solid #5a2a25; border-radius: 6px; padding: 6px 9px; }
+
+/* ---------- prompt ---------- */
+textarea.prompt.travado { border-color: #7a5a22; color: var(--texto); }
+.nota.fora { margin: -2px 0 6px 21px; color: #e0a34a; }
+.nota.fora:empty { display: none; }
+#avisoManual:empty { display: none; }
+#avisoManual { color: #e0a34a; }
