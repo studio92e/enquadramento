@@ -79,11 +79,19 @@ const MODELOS = {
 async function magnific(caminho, { metodo = 'GET', corpo } = {}) {
   const chave = lerChave();
   if (!chave) throw Object.assign(new Error('Chave da API do Magnific não configurada.'), { status: 428, codigo: 'sem_chave' });
-  const r = await fetch(API + caminho, {
-    method: metodo,
-    headers: { 'x-magnific-api-key': chave, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: corpo ? JSON.stringify(corpo) : undefined,
-  });
+  // A conexão com o Magnific às vezes cai antes de a resposta chegar ("fetch failed"): tenta de novo antes de desistir.
+  let r, falha;
+  for (let tentativa = 0; tentativa < 3 && !r; tentativa++) {
+    if (tentativa) await new Promise((ok) => setTimeout(ok, 800 * tentativa));
+    try {
+      r = await fetch(API + caminho, {
+        method: metodo,
+        headers: { 'x-magnific-api-key': chave, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: corpo ? JSON.stringify(corpo) : undefined,
+      });
+    } catch (e) { falha = e; }
+  }
+  if (!r) throw Object.assign(new Error('Não consegui falar com o Magnific (a conexão caiu três vezes). Confira a internet e tente de novo.'), { status: 502, causa: falha && falha.message });
   const txt = await r.text();
   let j;
   try { j = JSON.parse(txt); } catch { j = { message: txt.slice(0, 400) }; }

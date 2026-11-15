@@ -362,7 +362,7 @@ const AVISO_ESTATICO = 'Esta versão publicada não gera a imagem sozinha (a pon
 const modeloAtual = () => MODELOS.find((m) => m.id === E.ger.modelo) || MODELOS[0];
 function promptAtual(r = N.resumoCena()) {
   if (E.ger.manual != null) return E.ger.manual;
-  return montarPrompt(r, { texto: E.ger.texto, estilo: E.ger.estilo, modo: modeloAtual().modo, tecnico: E.ger.tecnico });
+  return montarPrompt(r, { texto: E.ger.texto, estilo: E.ger.estilo, modo: modeloAtual().modo, tecnico: E.ger.tecnico, legivel: E.ger.legivel !== false });
 }
 function atualizarPrompt() {
   const r = N.resumoCena(), t = $('#promptFinal');
@@ -424,7 +424,9 @@ function renderGer() {
     secao('Magnific',
       seletor('Modelo', MODELOS.map((m) => [m.id, m.nome]), g.modelo, (v) => { g.modelo = v; N.commit(); renderGer(); }),
       nota(M.nota), ...opcoes,
-      check('Descrever câmera e luz no prompt', g.tecnico, (v) => { E.ger.tecnico = v; mudouCena(); N.commit(); })),
+      check('Descrever câmera e luz no prompt', g.tecnico, (v) => { E.ger.tecnico = v; mudouCena(); N.commit(); }),
+      check('Clarear as sombras no quadro de referência', g.legivel !== false, (v) => { E.ger.legivel = v; mudouCena(); N.commit(); }),
+      nota('Com as sombras clareadas o gerador enxerga a pose e a direção de cada boneco mesmo em luz dura; a luz da cena vai descrita no texto.')),
     secao('Prompt que será enviado',
       el('textarea', { id: 'promptFinal', class: 'prompt' + (g.manual != null ? ' travado' : ''), readOnly: g.manual == null, spellcheck: false, value: promptAtual(), oninput: (e) => { if (E.ger.manual != null) E.ger.manual = e.target.value; } }),
       el('div', { id: 'chkManual' }, check('Editar o prompt à mão', g.manual != null, (v) => { E.ger.manual = v ? promptAtual() : null; renderGer(); })),
@@ -437,7 +439,7 @@ function renderGer() {
   atualizarNarracao(); atualizarPrompt();
 }
 function baixarQuadro() {
-  const a = el('a', { href: N.capturar(2048, 1, 'image/png'), download: 'quadro.png' });
+  const a = el('a', { href: N.capturar(2048, 1, 'image/png', E.ger.legivel !== false), download: 'quadro.png' });
   a.click();
 }
 async function gerar() {
@@ -458,7 +460,7 @@ async function gerar() {
   gerando = true; renderGer();
   estado('Enviando o quadro para o Magnific…', 'girando');
   try {
-    const quadro = N.capturar(1536, 0.92);
+    const quadro = N.capturar(1536, 0.92, 'image/jpeg', E.ger.legivel !== false);
     const item = await comAcesso(() => api.gerar({ modelo: g.modelo, prompt, imagem: quadro, proporcao: E.cam.proporcao, opcoes: { forca: g.forca, mystic: g.mystic, qualidade: g.qualidade, quantidade: g.quantidade, resolucao: g.resolucao } },
       (seg) => estado(`Gerando no Magnific… ${seg}s`, 'girando')));
     if (!historico.length) await carregarHistorico();

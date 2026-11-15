@@ -45,7 +45,12 @@ const lerChave = async (env) => ((env.MAGNIFIC_API_KEY || (await env.DADOS.get('
 async function magnific(env, caminho, { metodo = 'GET', corpo } = {}) {
   const chave = await lerChave(env);
   if (!chave) throw new Erro(428, 'Chave da API do Magnific não configurada.', 'sem_chave');
-  const r = await fetch(API + caminho, { method: metodo, headers: { 'x-magnific-api-key': chave, 'Content-Type': 'application/json', Accept: 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined });
+  let r;
+  for (let tentativa = 0; tentativa < 3 && !r; tentativa++) { // a conexão às vezes cai: tenta de novo
+    if (tentativa) await new Promise((ok) => setTimeout(ok, 800 * tentativa));
+    try { r = await fetch(API + caminho, { method: metodo, headers: { 'x-magnific-api-key': chave, 'Content-Type': 'application/json', Accept: 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined }); } catch {}
+  }
+  if (!r) throw new Erro(502, 'Não consegui falar com o Magnific (a conexão caiu três vezes). Tente de novo.');
   const txt = await r.text();
   let j;
   try { j = JSON.parse(txt); } catch { j = { message: txt.slice(0, 400) }; }

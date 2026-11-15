@@ -21,13 +21,14 @@ export const MODELOS = [
 const lista = (itens) => itens.filter(Boolean).join(' ');
 
 // r = resumo da cena (ver resumoCena em main.js)
-export function montarPrompt(r, { texto, estilo, modo, tecnico }) {
+export function montarPrompt(r, { texto, estilo, modo, tecnico, legivel }) {
   const est = ESTILOS.find((e) => e.id === estilo);
   const partes = [];
   const cena = (texto || '').trim();
 
   if (modo === 'edicao') {
-    partes.push('Turn the attached 3D previs frame into a finished film still. Treat it as the exact blocking and camera reference: keep the same camera position, angle, lens perspective and framing, and keep every figure and object in the same place, at the same scale and in the same pose. Replace the plain colored mannequins and gray proxy shapes with fully rendered people, wardrobe, props and set. No mannequins, no flat untextured shapes, no grid lines, no text or labels in the final image. The reference image has priority: if any text below disagrees with what the image shows (sizes, positions, poses, how each figure is cropped), follow the image.');
+    partes.push('Turn the attached 3D previs frame into a finished film still. Treat it as the exact blocking and camera reference: keep the same camera position, angle, lens perspective and framing, and keep every figure and object in the same place, at the same scale and in the same pose. Replace the plain colored mannequins and gray proxy shapes with fully rendered people, wardrobe, props and set. No mannequins, no flat untextured shapes, no grid lines, no text or labels in the final image. The reference image has priority: if any text below disagrees with what the image shows (sizes, positions, poses, how each figure is cropped), follow the image. Each person must keep exactly the orientation toward the camera that their mannequin has (facing it, in profile, or with the back to it): never turn someone to face the camera if the mannequin is seen from the side or from behind, and never reveal a face or a head that is hidden or cut off in the reference. On each mannequin the lighter chest panel and the nose mark the front; the dark stripe down the spine and the dark cap on the back of the head mark the back.'
+      + (legivel ? ' The reference frame was rendered with lifted shadows so every shape stays readable; light the final image as described under Lighting, not flat like the reference.' : ''));
   }
   if (cena) partes.push(`Scene: ${cena}`);
 
@@ -35,7 +36,7 @@ export function montarPrompt(r, { texto, estilo, modo, tecnico }) {
   if (pers.length) {
     const linhas = pers.map((p) => {
       const quem = p.descricao ? p.descricao : 'a person fitting the scene';
-      const como = [p.escala, p.virado, p.pose].filter(Boolean).join(', ');
+      const como = [p.escala, p.virado, p.olha, p.pose].filter(Boolean).join('; ');
       return modo === 'edicao'
         ? `the ${p.cor} mannequin (${p.posicao} of frame, ${como}) is ${quem}`
         : `${quem}, on the ${p.posicao} of frame, ${como}`;

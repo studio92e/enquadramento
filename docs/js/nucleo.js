@@ -27,7 +27,7 @@ const PADRAO = () => ({
   guias: { tercos: true, seguranca: false, centro: false, grade: true },
   enq: { alvo: null, tamanho: 'pm', az: 0, el: 0 },
   planos: [],
-  ger: { texto: '', textoOriginal: null, estilo: 'cinema', modelo: 'gemini', tecnico: true, forca: 65, mystic: 'realism', qualidade: 'medium', quantidade: 1, resolucao: '1k', manual: null },
+  ger: { texto: '', textoOriginal: null, legivel: true, estilo: 'cinema', modelo: 'gemini', tecnico: true, forca: 65, mystic: 'realism', qualidade: 'medium', quantidade: 1, resolucao: '1k', manual: null },
 });
 Object.assign(E, PADRAO());
 export const ativos = {}; // imagens e modelos importados: id -> dataURL
@@ -695,15 +695,24 @@ export function layout() {
 new ResizeObserver(layout).observe(palco);
 
 // Imagem limpa do que a câmera vê (sem grade, gizmo nem desfoque), para miniaturas e para o Magnific.
-export function capturar(largura = 1536, qualidade = 0.92, tipo = 'image/jpeg') {
-  const pr = renderer.getPixelRatio(), dens = scene.fog.density;
+// legivel = clareia as sombras só nesta captura, para o gerador enxergar a forma e a direção de cada boneco mesmo em luz dura.
+export function capturar(largura = 1536, qualidade = 0.92, tipo = 'image/jpeg', legivel = false) {
+  const pr = renderer.getPixelRatio(), dens = scene.fog.density, luzGeral = hemi.intensity;
+  const ceu = hemi.color.clone(), solo = hemi.groundColor.clone(), fundo = scene.background.clone();
   const altura = Math.round(largura / E.cam.proporcao);
   renderer.setPixelRatio(1); renderer.setSize(largura, altura, false);
   composer.setPixelRatio(1); composer.setSize(largura, altura);
-  grade.visible = false; scene.fog.density = neblinaBase();
+  grade.visible = false; scene.fog.density = legivel ? Math.min(neblinaBase(), 0.02) : neblinaBase();
+  if (legivel) {
+    // luz geral branca e forte só nesta captura, e fundo cinza se o da cena for quase preto (para a silhueta aparecer)
+    hemi.color.set(0xffffff); hemi.groundColor.set(0x9a9a9a); hemi.intensity = Math.max(luzGeral, 1.5);
+    const hsl = { h: 0, s: 0, l: 0 }; fundo.getHSL(hsl);
+    if (hsl.l < 0.16) { scene.background.set(0x30333a); scene.fog.color.set(0x30333a); }
+  }
   passeCena.camera = filmCam; bokeh.enabled = false;
   composer.render();
   const url = canvas.toDataURL(tipo, qualidade);
+  hemi.intensity = luzGeral; hemi.color.copy(ceu); hemi.groundColor.copy(solo); scene.background.copy(fundo); scene.fog.color.copy(fundo);
   scene.fog.density = dens; grade.visible = E.guias.grade;
   renderer.setPixelRatio(pr); layout();
   return url;
@@ -797,13 +806,28 @@ export function resumoCena() {
     const cortado = [q.cabeca, J.quadril.getWorldPosition(new THREE.Vector3()), J.peE.getWorldPosition(new THREE.Vector3()), J.peD.getWorldPosition(new THREE.Vector3())].some((p) => { const v = p.clone().project(filmCam); return Math.abs(v.x) > 1 || Math.abs(v.y) > 1; });
     let escala = ocupa < 0.45 ? 'small in the background' : ''; // a profundidade relativa entre os personagens entra logo abaixo
     // para onde está virado em relação à câmera
-    const frente = J.cabeca.getWorldDirection(new THREE.Vector3()), paraCam = filmCam.position.clone().sub(q.cabeca).normalize();
-    const d = frente.dot(paraCam);
-    const lado = q.cabeca.clone().addScaledVector(frente, 0.4).project(filmCam).x > q.cabeca.clone().project(filmCam).x ? 'screen-right' : 'screen-left';
-    const virado = d > 0.8 ? 'facing the camera' : d > 0.35 ? `three-quarter view, turned toward ${lado}` : d > -0.35 ? `in profile, facing ${lado}` : d > -0.8 ? `seen three-quarters from behind, turned toward ${lado}` : 'seen from behind';
+    // Usa o tronco (não a cabeça): 0° = peito para a câmera, 180° = costas para a câmera.
+    const chao = (v) => { v.y = 0; return v.lengthSq() > 1e-6 ? v.normalize() : v.set(0, 0, 1); };
+    const ladoTela = (p, f) => (p.clone().addScaledVector(f, 0.4).project(filmCam).x > p.clone().project(filmCam).x ? 'screen-right' : 'screen-left');
+    const anguloCam = (p, f) => grau(Math.acos(clamp(f.dot(chao(filmCam.position.clone().sub(p))), -1, 1)));
+    const peito = J.peito.getWorldPosition(new THREE.Vector3()), fCorpo = chao(J.peito.getWorldDirection(new THREE.Vector3()));
+    const fCab = chao(J.cabeca.getWorldDirection(new THREE.Vector3()));
+    const ang = anguloCam(peito, fCorpo), angCab = anguloCam(q.cabeca, fCab), lado = ladoTela(peito, fCorpo);
+    const dOmbro = (j) => J[j].getWorldPosition(new THREE.Vector3()).distanceTo(filmCam.position);
+    const ombro = dOmbro('ombroE') < dOmbro('ombroD') ? 'left' : 'right';
+    let virado = ang < 25 ? 'body facing the camera frontally'
+      : ang < 65 ? `three-quarter front view: chest mostly toward the camera, body angled toward ${lado}`
+      : ang < 115 ? `in full profile: body facing ${lado}, ${ombro} shoulder toward the camera`
+      : ang < 155 ? `seen three-quarters from behind: we see the back, the ${ombro} shoulder and the back of the head; the body is angled away toward ${lado}; the face must stay hidden or barely visible at the edge`
+      : 'seen from directly behind: only the back and the back of the head are visible; the face must not be visible';
+    const costas = ang >= 115;
+    // a cabeça só é citada quando aponta para um lado bem diferente do corpo
+    if (Math.abs(angCab - ang) > 30) virado += angCab < 30 ? ', head turned to look toward the camera' : angCab > 150 ? ', head turned away from the camera' : `, head turned toward ${ladoTela(q.cabeca, fCab)}`;
+    if (q.dentro && !q.cabecaDentro) virado += '; the head is cut off by the edge of the frame, do not bring it back into frame';
+    const olhar = J.cabeca.getWorldDirection(new THREE.Vector3());
     // o nome da pose só vale se o corpo não foi tombado nem girado à mão
     const tombado = Math.abs(b.obj.rotation.x) > 0.2 || Math.abs(b.obj.rotation.z) > 0.2;
-    return { id: b.id, cor: (CORES_BONECO.find((x) => x.hex === b.cor) || { en: 'colored' }).en, descricao: (b.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro, pose: (!tombado && POSE_EN[b.poseId]) || '', escala, virado, dist, cortado, x: q.x };
+    return { id: b.id, cor: (CORES_BONECO.find((x) => x.hex === b.cor) || { en: 'colored' }).en, descricao: (b.descricao || '').trim(), posicao: q.posicao, noQuadro: q.dentro, pose: (!tombado && !costas && POSE_EN[b.poseId]) || '', escala, virado, olha: '', dist, cortado, costas, ang, ombro, x: q.x, _cab: q.cabeca, _olhar: olhar };
   }).sort((a, b) => a.x - b.x);
   const elementos = E.itens.filter((i) => i.tipo === 'elemento' && i.obj.visible).map((e) => {
     // em quadro se o centro ou algum canto da caixa do elemento aparece
@@ -821,16 +845,25 @@ export function resumoCena() {
   const prop = PROPORCOES.find((p) => Math.abs(p[0] - c.proporcao) < 0.01);
   // composição em profundidade: alguém bem mais perto da câmera que os outros
   const noQ = personagens.filter((p) => p.noQuadro);
+  // quem está olhando para quem (cabeça apontada para a cabeça do outro)
+  for (const p of noQ) for (const outro of noQ) {
+    if (outro === p || p.olha) continue;
+    if (p._olhar.angleTo(outro._cab.clone().sub(p._cab)) < rad(28)) p.olha = `looking at the ${outro.cor} figure`;
+  }
   if (noQ.length > 1) {
     const perto = Math.min(...noQ.map((p) => p.dist)), longe = Math.max(...noQ.map((p) => p.dist));
     for (const p of noQ) {
-      if (p.dist <= 0.62 * longe) p.escala = 'in the close foreground, much larger in frame than the other figure and cropped by the frame';
-      else if (p.dist >= 1.6 * perto) p.escala = 'further from the camera, smaller in frame';
+      if (p.dist <= 0.72 * longe) p.escala = 'in the close foreground, much larger in frame than the other figure and cropped by the frame';
+      else if (p.dist >= 1.38 * perto) p.escala = 'further from the camera, smaller in frame';
     }
   }
-  const profundidade = noQ.length > 1 && Math.min(...noQ.map((p) => p.dist)) < 0.6 * Math.max(...noQ.map((p) => p.dist)) ? ', staged in depth with one figure much closer to the camera than the other' : '';
+  const profundidade = noQ.length > 1 && Math.min(...noQ.map((p) => p.dist)) < 0.72 * Math.max(...noQ.map((p) => p.dist)) ? ', staged in depth with one figure much closer to the camera than the other' : '';
+  // plano sobre o ombro: alguém de costas em primeiro plano e outra pessoa mais ou menos de frente
+  const frenteCena = noQ.find((p) => p.costas && p.escala.startsWith('in the close foreground'));
+  const alvoCena = frenteCena && noQ.find((p) => p !== frenteCena && p.ang < 80);
+  const sobreOmbroEn = frenteCena && alvoCena ? `over-the-shoulder shot: the camera is behind the ${frenteCena.cor} figure's ${frenteCena.ombro} shoulder and looks past it at the ${alvoCena.cor} figure, who is seen in a ${T.en}; the ${frenteCena.cor} figure stays a large foreground shape with its back to us` : '';
   const cam = {
-    plano: (T.n === 2 ? 'two-shot, ' : T.n > 2 ? 'group shot, ' : '') + T.en + profundidade, angulo, holandes: Math.abs(c.roll) >= 4 ? Math.round(Math.abs(c.roll)) : 0,
+    plano: sobreOmbroEn || (T.n === 2 ? 'two-shot, ' : T.n > 2 ? 'group shot, ' : '') + T.en + profundidade, angulo, holandes: Math.abs(c.roll) >= 4 ? Math.round(Math.abs(c.roll)) : 0,
     sensor: o.sensor.en, focal: Math.round(c.focal), anamorfica: c.anamorfica, t: c.t, pdc, suporte: sup ? sup[3] : '', proporcao: prop ? prop[1].split(' ')[0] : c.proporcao.toFixed(2) + ':1',
   };
 

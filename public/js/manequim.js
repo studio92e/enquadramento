@@ -62,7 +62,12 @@ export function criarBoneco({ biotipo = 'homem', altura, cor = '#4f8fe8' } = {})
   const mat = new THREE.MeshStandardMaterial({ color: cor, roughness: 0.72, metalness: 0.0 });
   const matJ = new THREE.MeshStandardMaterial({ color: cor, roughness: 0.6 });
   const matR = new THREE.MeshStandardMaterial({ color: 0x1b1c20, roughness: 0.5 });
-  const pintar = (hex) => { mat.color.set(hex); matJ.color.set(hex).multiplyScalar(0.62); };
+  // Marcas de frente e costas: peito claro e nariz na frente; faixa escura na coluna e touca escura atrás da cabeça.
+  // Sem elas o boneco é simétrico e nem o olho nem o gerador de imagem sabem para onde ele está virado.
+  const matClaro = new THREE.MeshStandardMaterial({ color: cor, roughness: 0.7 });
+  const matEscuro = new THREE.MeshStandardMaterial({ color: cor, roughness: 0.8 });
+  const branco = new THREE.Color(0xffffff);
+  const pintar = (hex) => { mat.color.set(hex); matJ.color.set(hex).multiplyScalar(0.62); matClaro.color.set(hex).lerp(branco, 0.6); matEscuro.color.set(hex).multiplyScalar(0.28); };
   pintar(cor);
 
   const J = {};
@@ -83,9 +88,12 @@ export function criarBoneco({ biotipo = 'homem', altura, cor = '#4f8fe8' } = {})
 
   const coluna = junta('coluna', quadril, 0, 0.015, 0);
   malha(capsula(0.07, abd + 0.07), mat, coluna, 'coluna', 0, abd / 2, 0).scale.set(1.22 * tr, 1, 0.86);
+  malha(new THREE.BoxGeometry(0.024, abd + 0.03, 0.02), matEscuro, coluna, 'coluna', 0, abd / 2, -0.054); // coluna (costas)
 
   const peito = junta('peito', coluna, 0, abd, 0);
   malha(capsula(0.088, pei + 0.035), mat, peito, 'peito', 0, pei / 2 - 0.01, 0).scale.set((B.ombro / 0.128) * 1.3 * tr, 1, 0.84);
+  malha(bola(0.058), matClaro, peito, 'peito', 0, pei * 0.56, 0.057).scale.set((B.ombro / 0.128) * 1.35 * tr, pei / 0.16, 0.36); // peito (frente)
+  malha(new THREE.BoxGeometry(0.024, pei * 0.9, 0.02), matEscuro, peito, 'peito', 0, pei * 0.5, -0.068); // coluna (costas)
 
   const pescoco = junta('pescoco', peito, 0, pei - 0.005, 0);
   malha(capsula(0.027, pesc + 0.05), matJ, pescoco, 'pescoco', 0, pesc / 2, 0);
@@ -93,6 +101,7 @@ export function criarBoneco({ biotipo = 'homem', altura, cor = '#4f8fe8' } = {})
   const cabeca = junta('cabeca', pescoco, 0, pesc, 0);
   const rc = cab / 2;
   malha(bola(rc), mat, cabeca, 'cabeca', 0, rc, 0).scale.set(0.8, 1, 0.9);
+  malha(bola(rc * 1.04), matEscuro, cabeca, 'cabeca', 0, rc * 1.06, -rc * 0.2).scale.set(0.82, 0.98, 0.92); // touca: topo e nuca
   malha(new THREE.BoxGeometry(0.014, 0.026, 0.022), matJ, cabeca, 'cabeca', 0, cab * 0.4, rc * 0.9);
   malha(bola(0.0085), matR, cabeca, 'cabeca', 0.022, cab * 0.55, rc * 0.8);
   malha(bola(0.0085), matR, cabeca, 'cabeca', -0.022, cab * 0.55, rc * 0.8);
@@ -166,6 +175,6 @@ export function criarBoneco({ biotipo = 'homem', altura, cor = '#4f8fe8' } = {})
     get altura() { return alturaAtual; },
     alturaCabeca: cab,
     setPose, getPose, aterrar,
-    dispose() { corpo.traverse((o) => o.isMesh && o.geometry.dispose()); mat.dispose(); matJ.dispose(); matR.dispose(); },
+    dispose() { corpo.traverse((o) => o.isMesh && o.geometry.dispose()); mat.dispose(); matJ.dispose(); matR.dispose(); matClaro.dispose(); matEscuro.dispose(); },
   };
 }
