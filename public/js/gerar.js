@@ -27,7 +27,7 @@ export function montarPrompt(r, { texto, estilo, modo, tecnico }) {
   const cena = (texto || '').trim();
 
   if (modo === 'edicao') {
-    partes.push('Turn the attached 3D previs frame into a finished film still. Treat it as the exact blocking and camera reference: keep the same camera position, angle, lens perspective and framing, and keep every figure and object in the same place, at the same scale and in the same pose. Replace the plain colored mannequins and gray proxy shapes with fully rendered people, wardrobe, props and set. No mannequins, no flat untextured shapes, no grid lines, no text or labels in the final image.');
+    partes.push('Turn the attached 3D previs frame into a finished film still. Treat it as the exact blocking and camera reference: keep the same camera position, angle, lens perspective and framing, and keep every figure and object in the same place, at the same scale and in the same pose. Replace the plain colored mannequins and gray proxy shapes with fully rendered people, wardrobe, props and set. No mannequins, no flat untextured shapes, no grid lines, no text or labels in the final image. The reference image has priority: if any text below disagrees with what the image shows (sizes, positions, poses, how each figure is cropped), follow the image.');
   }
   if (cena) partes.push(`Scene: ${cena}`);
 
@@ -35,9 +35,10 @@ export function montarPrompt(r, { texto, estilo, modo, tecnico }) {
   if (pers.length) {
     const linhas = pers.map((p) => {
       const quem = p.descricao ? p.descricao : 'a person fitting the scene';
+      const como = [p.escala, p.virado, p.pose].filter(Boolean).join(', ');
       return modo === 'edicao'
-        ? `the ${p.cor} mannequin (${p.posicao} of frame, ${p.pose}) is ${quem}`
-        : `${quem}, ${p.pose}, on the ${p.posicao} of frame`;
+        ? `the ${p.cor} mannequin (${p.posicao} of frame, ${como}) is ${quem}`
+        : `${quem}, on the ${p.posicao} of frame, ${como}`;
     });
     partes.push((modo === 'edicao' ? 'Characters: ' : 'Characters: ') + linhas.join('; ') + '.');
   }
