@@ -399,7 +399,7 @@ function renderGer() {
     secao('Prompt que será enviado',
       el('textarea', { id: 'promptFinal', class: 'prompt', readOnly: g.manual == null, spellcheck: false, value: promptAtual(), oninput: (e) => { if (g.manual != null) g.manual = e.target.value; } }),
       check('Editar o prompt à mão', g.manual != null, (v) => { g.manual = v ? promptAtual() : null; renderGer(); })),
-    el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando || semServidor, onclick: gerar }, gerando ? 'Gerando…' : 'Gerar imagem'),
+    el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Gerar imagem (só no computador do estúdio)' : 'Gerar imagem'),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
@@ -410,7 +410,8 @@ function baixarQuadro() {
   a.click();
 }
 async function gerar() {
-  if (gerando || semServidor) return;
+  if (gerando) return;
+  if (semServidor) { N.aviso(AVISO_ESTATICO, false, 9000); estado(AVISO_ESTATICO, 'erro'); return; }
   if (!temChave) return abrirChave();
   const g = E.ger, prompt = promptAtual();
   if (!g.texto.trim() && g.manual == null) { estado('Escreva como é a cena antes de gerar.', 'erro'); return; }
@@ -476,7 +477,7 @@ dlgImg.addEventListener('click', (e) => { if (e.target === dlgImg) dlgImg.close(
 
 const dlgChave = $('#dlgChave');
 function abrirChave() {
-  if (semServidor) return N.aviso(AVISO_ESTATICO);
+  if (semServidor) return N.aviso(AVISO_ESTATICO, false, 9000);
   $('#inChave').value = '';
   if (hospedado) $('#chaveOnde').textContent = 'Cole aqui a chave da API. Ela fica guardada no servidor do estúdio, protegida pela senha de acesso, e nunca aparece na página.';
   $('#chaveEstado').textContent = temChave ? 'Já existe uma chave salva neste computador. Colar outra substitui a atual.' : 'Nenhuma chave salva ainda.';

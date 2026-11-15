@@ -38,7 +38,12 @@ export const H = { tudo() {}, sel() {}, cam() {}, luz() {}, ger() {}, lista() {}
 // ---------- three ----------
 const palco = document.getElementById('palco');
 const quadro = document.getElementById('quadro');
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+const TOQUE = window.matchMedia('(pointer: coarse)').matches;
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
+catch (e) { throw new Error('este navegador não conseguiu ligar o 3D (WebGL). Abra o endereço no Chrome atualizado'); }
+// Alguns celulares não desenham em textura de ponto flutuante: nesses o desfoque fica desligado e o resto funciona.
+const PODE_FLOAT = renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float');
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -88,7 +93,7 @@ campo.layers.set(1); campo.frustumCulled = false; campo.raycast = () => {};
 filmCam.add(campo);
 
 // profundidade de campo física: desfoque proporcional a |d - foco| / d
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 }));
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: PODE_FLOAT ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: PODE_FLOAT && !TOQUE ? 4 : 0 }));
 const passeCena = new RenderPass(scene, filmCam);
 composer.addPass(passeCena);
 const bokeh = new BokehPass(scene, filmCam, { focus: 3, aperture: 0.001, maxblur: 0.02 });
@@ -107,7 +112,6 @@ const orbit = new OrbitControls(dirCam, canvas);
 orbit.target.set(0, 1, 0); orbit.enableDamping = true; orbit.dampingFactor = 0.12; orbit.maxPolarAngle = Math.PI * 0.495; orbit.enabled = false;
 
 const gizmo = new TransformControls(filmCam, canvas);
-const TOQUE = window.matchMedia('(pointer: coarse)').matches;
 gizmo.setSize(TOQUE ? 1.25 : 0.85);
 sobre.add(gizmo.getHelper());
 const caixaSel = new THREE.BoxHelper(new THREE.Object3D(), 0xf2a93b);
@@ -115,11 +119,11 @@ caixaSel.material.transparent = true; caixaSel.material.opacity = 0.4; caixaSel.
 caixaSel.visible = false; sobre.add(caixaSel);
 
 // ---------- avisos ----------
-export function aviso(texto, erro = false) {
+export function aviso(texto, erro = false, ms = erro ? 7000 : 3200) {
   const a = document.createElement('div');
   a.className = 'aviso' + (erro ? ' erro' : ''); a.textContent = texto;
   document.getElementById('avisos').append(a);
-  setTimeout(() => a.remove(), erro ? 7000 : 3200);
+  setTimeout(() => a.remove(), ms);
 }
 
 // ---------- itens ----------
@@ -520,7 +524,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     if (dedos.size > 2) return;
   }
   if (gizmo.axis || arrastandoGizmo) return;
-  pd = { x: ev.clientX, y: ev.clientY, ux: ev.clientX, uy: ev.clientY, botao: ev.button, alt: ev.altKey, shift: ev.shiftKey, movido: false };
+  pd = { x: ev.clientX, y: ev.clientY, ux: ev.clientX, uy: ev.clientY, botao: ev.button, alt: ev.altKey, shift: ev.shiftKey, movido: false, folga: ev.pointerType === 'touch' ? 14 : 4 };
   if (E.vista === 'camera') { try { canvas.setPointerCapture(ev.pointerId); } catch {} canvas.style.cursor = 'grabbing'; }
 });
 canvas.addEventListener('pointermove', (ev) => {
@@ -540,7 +544,7 @@ canvas.addEventListener('pointermove', (ev) => {
   if (!pd || pd.multi) return;
   const dx = ev.clientX - pd.ux, dy = ev.clientY - pd.uy;
   pd.ux = ev.clientX; pd.uy = ev.clientY;
-  if (!pd.movido && Math.hypot(ev.clientX - pd.x, ev.clientY - pd.y) < 4) return;
+  if (!pd.movido && Math.hypot(ev.clientX - pd.x, ev.clientY - pd.y) < pd.folga) return;
   pd.movido = true;
   if (E.vista !== 'camera') return;
   const c = E.cam, o = optica(c), r = canvas.getBoundingClientRect();
@@ -660,6 +664,7 @@ export function iniciar() {
   else cenaInicial();
   setVista(E.vista);
   requestAnimationFrame(quadroAQuadro);
+  const c = document.getElementById('carregando'); if (c) c.remove();
 }
 export function novoAtivo(dataURL) { const id = 'a' + uid(); ativos[id] = dataURL; return id; }
 
@@ -741,7 +746,7 @@ function quadroAQuadro() {
   if (n++ % 3 === 0) desenharPip();
   const cam = vistaCam();
   scene.fog.density = E.vista === 'camera' ? neblinaBase() : Math.min(neblinaBase(), 0.012);
-  passeCena.camera = cam; bokeh.enabled = E.vista === 'camera' && E.cam.pdc;
+  passeCena.camera = cam; bokeh.enabled = PODE_FLOAT && E.vista === 'camera' && E.cam.pdc;
   composer.render();
   renderer.autoClear = false; renderer.clearDepth(); renderer.render(sobre, cam); renderer.autoClear = true;
   if (camSuja && n % 6 === 0 && !arrastandoGizmo) { camSuja = false; H.cam(); }

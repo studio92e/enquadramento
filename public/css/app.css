@@ -265,3 +265,7 @@ code { font: 11.5px var(--mono); background: var(--fundo); padding: 1px 5px; bor
   #centro { height: auto; min-height: 0; }
   #planos { display: none; }
 }
+
+/* ---------- abertura e erro ---------- */
+#carregando { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--fundo); color: var(--fraco); font-size: 14px; }
+#erroFatal { position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 60; background: #3a1512; border: 1px solid #a8483e; color: #ffd0c9; padding: 12px 14px; border-radius: 10px; font: 13px/1.5 var(--mono); user-select: text; box-shadow: 0 10px 40px #000c; }
