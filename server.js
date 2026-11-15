@@ -195,6 +195,27 @@ async function api(req, res, url) {
     } finally { t.baixando = false; }
   }
 
+  if (rota === '/api/melhorar' && req.method === 'POST') {
+    const { texto, idioma } = await lerCorpo(req, 64 * 1024);
+    const t = String(texto || '').trim();
+    if (!t) return json(res, 400, { erro: 'Escreva ou narre a cena antes de melhorar.' });
+    const r = await magnific('/v1/ai/improve-prompt', { metodo: 'POST', corpo: { prompt: t.slice(0, 2500), type: 'image', language: /^[a-z]{2}$/.test(idioma || '') ? idioma : 'pt' } });
+    const tarefa = r?.data?.task_id;
+    if (!tarefa) return json(res, 502, { erro: 'O Magnific não devolveu o número da tarefa.' });
+    for (let i = 0; i < 45; i++) {
+      await new Promise((ok) => setTimeout(ok, 1000));
+      const g = await magnific('/v1/ai/improve-prompt/' + tarefa);
+      const status = g?.data?.status;
+      if (status === 'FAILED') return json(res, 502, { erro: 'O Magnific não conseguiu melhorar esse texto.' });
+      if (status === 'COMPLETED') {
+        const novo = String((g.data.generated || [])[0] || '').trim();
+        if (!novo) return json(res, 502, { erro: 'O Magnific devolveu um texto vazio.' });
+        return json(res, 200, { texto: novo });
+      }
+    }
+    return json(res, 504, { erro: 'O Magnific demorou demais para melhorar o texto. Tente de novo.' });
+  }
+
   if (rota === '/api/historico' && req.method === 'GET') return json(res, 200, lerHist().slice(0, 60));
 
   return json(res, 404, { erro: 'Rota não encontrada.' });

@@ -87,6 +87,7 @@ export const api = {
   config: () => pedir('api/config'),
   salvarChave: (chave) => pedir('api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chave }) }),
   historico: () => pedir('api/historico'),
+  melhorar: (texto) => pedir('api/melhorar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto, idioma: 'pt' }) }),
   async gerar(dados, aoAndar) {
     const { id } = await pedir('api/gerar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) });
     const inicio = Date.now();

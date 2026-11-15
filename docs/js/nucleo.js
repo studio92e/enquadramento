@@ -27,7 +27,7 @@ const PADRAO = () => ({
   guias: { tercos: true, seguranca: false, centro: false, grade: true },
   enq: { alvo: null, tamanho: 'pm', az: 0, el: 0 },
   planos: [],
-  ger: { texto: '', estilo: 'cinema', modelo: 'gemini', tecnico: true, forca: 65, mystic: 'realism', qualidade: 'medium', quantidade: 1, resolucao: '1k', manual: null },
+  ger: { texto: '', textoOriginal: null, estilo: 'cinema', modelo: 'gemini', tecnico: true, forca: 65, mystic: 'realism', qualidade: 'medium', quantidade: 1, resolucao: '1k', manual: null },
 });
 Object.assign(E, PADRAO());
 export const ativos = {}; // imagens e modelos importados: id -> dataURL

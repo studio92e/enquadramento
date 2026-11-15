@@ -387,7 +387,15 @@ function renderGer() {
   const pers = N.bonecos();
   por(p, 
     secao('A cena',
-      area('', g.texto, (v) => { g.texto = v; atualizarPrompt(); }, 'Descreva o visual: lugar, época, hora do dia, clima, figurino, o que está acontecendo…'),
+      campoCena(),
+      fila(
+        el('button', { id: 'btNarrar', onclick: narrar, title: 'Liga o microfone e escreve o que você falar' }, 'Narrar a cena'),
+        botao('Limpar', () => { g.texto = ''; g.textoOriginal = null; renderGer(); N.commit(); }, '', 'Apaga a descrição da cena')),
+      el('p', { id: 'narrandoTexto', class: 'nota' }),
+      fila(
+        el('button', { id: 'btMelhorar', disabled: melhorando, onclick: melhorarTexto, title: 'Reescreve o que você narrou como uma descrição de cena caprichada' }, melhorando ? 'Melhorando…' : 'Melhorar o texto'),
+        g.textoOriginal != null ? botao('Voltar ao meu texto', () => { g.texto = g.textoOriginal; g.textoOriginal = null; renderGer(); N.commit(); }, '', 'Desfaz a melhoria') : null),
+      nota('"Melhorar o texto" pega o que você narrou ou escreveu, junta com quem está em quadro, o plano, a lente e a luz, e devolve uma descrição mais rica. Dá para editar depois.'),
       seletor('Estilo', ESTILOS.map((s) => [s.id, s.nome]), g.estilo, (v) => { g.estilo = v; atualizarPrompt(); N.commit(); })),
     pers.length ? secao('Quem é cada boneco',
       pers.map((b) => el('label', { class: 'pers' }, el('i', { style: { background: b.cor } }),
@@ -404,6 +412,7 @@ function renderGer() {
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
     historico.length ? secao('Geradas', el('div', { class: 'galeria' }, historico.flatMap((h) => h.imagens.map((src) => el('button', { onclick: () => abrirImagem(h, src) }, el('img', { src, loading: 'lazy', alt: '' })))))) : null);
   p.scrollTop = topo;
+  atualizarNarracao();
 }
 function baixarQuadro() {
   const a = el('a', { href: N.capturar(2048, 1, 'image/png'), download: 'quadro.png' });
@@ -411,6 +420,7 @@ function baixarQuadro() {
 }
 async function gerar() {
   if (gerando) return;
+  pararNarracao();
   if (semServidor) { N.aviso(AVISO_ESTATICO, false, 9000); estado(AVISO_ESTATICO, 'erro'); return; }
   if (!temChave) return abrirChave();
   const g = E.ger, prompt = promptAtual();
@@ -430,6 +440,101 @@ async function gerar() {
     gerando = false; renderGer();
     if (e.codigo === 'sem_chave' || (e.status === 401 && e.codigo !== 'senha')) { temChave = e.status === 401 ? temChave : false; estado(e.status === 401 ? 'O Magnific recusou a chave. Confira a chave no botão "Magnific".' : e.message, 'erro'); }
     else estado(e.message, 'erro');
+  }
+}
+
+// ---------- narração por voz ----------
+// Usa o reconhecimento de fala do próprio navegador (Chrome no computador e no Android). Precisa de internet.
+let rec = null, narrando = false, parcial = '';
+function campoCena() {
+  const c = area('', E.ger.texto, (v) => { E.ger.texto = v; atualizarPrompt(); }, 'Descreva ou narre a cena: lugar, época, hora do dia, clima, figurino, o que está acontecendo, o que cada um sente…');
+  const t = c.querySelector('textarea'); t.id = 'textoCena'; t.rows = 6;
+  return c;
+}
+function atualizarNarracao() {
+  const b = $('#btNarrar'), l = $('#narrandoTexto');
+  if (b) { b.classList.toggle('gravando', narrando); b.textContent = narrando ? 'Parar de narrar' : 'Narrar a cena'; }
+  if (l) { l.classList.toggle('ouvindo', narrando); l.textContent = narrando ? (parcial ? '… ' + parcial : 'Ouvindo. Pode falar, eu vou escrevendo.') : ''; }
+}
+function acrescentarFala(fala) {
+  fala = fala.trim(); if (!fala) return;
+  fala = fala.charAt(0).toUpperCase() + fala.slice(1);
+  const base = E.ger.texto.trim();
+  E.ger.texto = base ? base + (/[.!?…:;,]$/.test(base) ? ' ' : '. ') + fala : fala;
+  const a = $('#textoCena');
+  if (a) { a.value = E.ger.texto; a.scrollTop = a.scrollHeight; }
+  atualizarPrompt();
+}
+function pararNarracao() {
+  if (!narrando) return;
+  narrando = false;
+  try { rec.stop(); } catch {}
+  atualizarNarracao(); N.commit();
+}
+function narrar() {
+  if (narrando) return pararNarracao();
+  const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Reconhecimento) return N.aviso('Este navegador não tem ditado por voz. Abra no Chrome para narrar a cena.', true);
+  rec = new Reconhecimento();
+  rec.lang = 'pt-BR'; rec.interimResults = true; rec.maxAlternatives = 1;
+  rec.continuous = !TOQUE; // no Android o modo contínuo repete trechos; lá cada frase encerra e o ditado religa sozinho
+  rec.onresult = (e) => {
+    parcial = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) acrescentarFala(r[0].transcript); else parcial += r[0].transcript;
+    }
+    atualizarNarracao();
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return; // silêncio ou parada pedida: segue o fluxo normal
+    narrando = false; atualizarNarracao();
+    N.aviso(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'O microfone está bloqueado. Libere o microfone para este site nas permissões do navegador.'
+      : e.error === 'network' ? 'O ditado por voz precisa de internet.'
+      : e.error === 'audio-capture' ? 'Não achei nenhum microfone neste aparelho.' : 'O ditado parou (' + e.error + ').', true, 8000);
+  };
+  rec.onend = () => {
+    parcial = '';
+    if (narrando) { try { rec.start(); } catch { narrando = false; } } // pausa longa encerra o ditado: religa enquanto o botão estiver ligado
+    atualizarNarracao();
+    if (!narrando) N.commit();
+  };
+  narrando = true; parcial = '';
+  try { rec.start(); } catch { narrando = false; N.aviso('Não consegui ligar o microfone.', true); }
+  atualizarNarracao();
+}
+
+// ---------- melhorar o texto da cena ----------
+let melhorando = false;
+// O que vai para o melhorador: a narração e, em seguida, o que a cena 3D já define (para ele não inventar outra câmera).
+function contextoDaCena(narracao) {
+  const r = N.resumoCena(), T = N.classificarPlano(), c = E.cam;
+  const onde = { left: 'à esquerda', center: 'no centro', right: 'à direita' };
+  const linhas = [];
+  const pers = r.personagens.filter((p) => p.noQuadro && p.descricao).map((p) => `${onde[p.posicao]}, ${p.descricao}`);
+  if (pers.length) linhas.push('Personagens em quadro: ' + pers.join('; ') + '.');
+  const angulo = c.tilt < -60 ? 'vista de cima' : c.tilt < -14 ? 'câmera alta olhando para baixo' : c.tilt > 14 ? 'câmera baixa olhando para cima' : 'câmera na altura dos olhos';
+  linhas.push(`Enquadramento: ${T.nome.toLowerCase()}, lente ${Math.round(c.focal)} mm, ${angulo}.`);
+  const esquema = PRESETS_LUZ.find((p) => p.id === E.amb.esquema);
+  if (esquema) linhas.push(`Luz: ${esquema.nome.toLowerCase()} (${esquema.desc.toLowerCase()}).`);
+  const contexto = linhas.join(' ');
+  return narracao.slice(0, Math.max(200, 2480 - contexto.length)) + '\n\n' + contexto;
+}
+async function melhorarTexto() {
+  if (melhorando) return;
+  if (semServidor) return N.aviso('Melhorar o texto usa o Magnific, que só está ligado no computador do estúdio. Aqui dá para narrar e copiar o prompt.', false, 9000);
+  pararNarracao();
+  const g = E.ger, meu = g.texto.trim();
+  if (!meu) return N.aviso('Narre ou escreva a cena primeiro.');
+  if (!temChave) return abrirChave();
+  melhorando = true; renderGer(); estado('Melhorando o texto no Magnific…', 'girando');
+  try {
+    const r = await comAcesso(() => api.melhorar(contextoDaCena(meu)));
+    g.textoOriginal = meu; g.texto = r.texto;
+    melhorando = false; document.activeElement && document.activeElement.blur(); renderGer(); N.commit();
+    estado('Texto melhorado. Leia e ajuste o que quiser; "Voltar ao meu texto" desfaz.', 'ok');
+  } catch (e) {
+    melhorando = false; renderGer(); estado(e.message, 'erro');
   }
 }
 
