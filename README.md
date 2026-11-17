@@ -14,6 +14,7 @@ A versão publicada no GitHub Pages tem tudo menos a geração de imagem, que de
 - Enquadramento automático por tamanho de plano, direção e altura; sobre o ombro, subjetiva e holandês.
 - 14 esquemas de luz e luzes avulsas (refletor, softbox, lâmpada, sol).
 - Planos salvos, desfazer, salvar e abrir cena em arquivo.
+- Geração em lote: uma imagem para cada plano salvo, de uma vez, com a mesma descrição de cena, estilo e modelo (botão "Gerar em lote" na aba Gerar; só na versão com servidor).
 - No celular: um dedo faz pan e tilt, dois dedos aproximam e deslocam.
 
 ## Rodar no computador (com geração de imagem)

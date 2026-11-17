@@ -196,6 +196,20 @@ code { font: 11.5px var(--mono); background: var(--fundo); padding: 1px 5px; bor
 .visor img { width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 8px; }
 .visor aside { background: none; gap: 8px; min-height: 0; }
 .visor pre { flex: 1; min-height: 0; overflow: auto; margin: 0; white-space: pre-wrap; font: 11px/1.5 var(--mono); color: #b9bcc4; background: var(--fundo); border: 1px solid var(--linha); border-radius: 8px; padding: 10px; }
+#dlgLote { width: 560px; max-width: calc(100vw - 24px); }
+#dlgLote menu { flex-wrap: wrap; }
+#dlgLote p.erro { color: #ffb4ab; }
+#loteTotal, #loteResumo { font-weight: 500; }
+.lote-lista { display: grid; gap: 5px; max-height: min(44vh, 400px); overflow-y: auto; margin: 10px 0; padding-right: 2px; }
+.lote-item { display: grid; grid-template-columns: auto 88px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; padding: 5px 10px 5px 8px; background: var(--alto); border: 1px solid var(--linha); border-radius: 7px; text-align: left; cursor: pointer; }
+.lote-item.sem { grid-template-columns: 88px minmax(0, 1fr) auto; cursor: default; }
+button.lote-item.sem { cursor: pointer; }
+.lote-item input { accent-color: var(--ambar); margin: 0 1px; }
+.lote-item img { width: 88px; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 4px; display: block; }
+.lote-item .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lote-item .est { max-width: 210px; font: 11px/1.35 var(--mono); color: var(--fraco); text-align: right; }
+.lote-item.pronta .est { color: var(--ok); }
+.lote-item.falhou .est { color: #ffb4ab; }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: #33363d; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }

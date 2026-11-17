@@ -85,7 +85,7 @@ async function api(req, env, url) {
 
   if (rota === '/api/gerar' && metodo === 'POST') {
     exigirAcesso(req, env);
-    const { modelo, prompt, imagem, proporcao, opcoes } = await req.json();
+    const { modelo, prompt, imagem, proporcao, opcoes, rotulo } = await req.json();
     const M = MODELOS[modelo];
     if (!M) return json(400, { erro: 'Modelo desconhecido.' });
     if (!prompt || !String(prompt).trim()) return json(400, { erro: 'Escreva o prompt da cena.' });
@@ -98,7 +98,8 @@ async function api(req, env, url) {
     const id = carimbo() + '-' + aleatorio(8);
     const ref = `${id}-quadro.${m[1] === 'jpeg' ? 'jpg' : 'png'}`;
     await env.DADOS.put('img:' + ref, deBase64(m[2]), { metadata: { tipo: 'image/' + m[1] } });
-    await env.DADOS.put('tarefa:' + id, JSON.stringify({ modelo, tarefa, prompt: String(prompt).slice(0, 12000), ref: '/geracoes/' + ref, quando: new Date().toISOString() }), { expirationTtl: 86400 });
+    // rotulo: nome do plano, quando o pedido vem do lote; aparece junto da imagem na galeria
+    await env.DADOS.put('tarefa:' + id, JSON.stringify({ modelo, tarefa, prompt: String(prompt).slice(0, 12000), ref: '/geracoes/' + ref, quando: new Date().toISOString(), rotulo: typeof rotulo === 'string' ? rotulo.trim().slice(0, 80) : '' }), { expirationTtl: 86400 });
     return json(200, { id });
   }
 
@@ -128,6 +129,7 @@ async function api(req, env, url) {
       imagens.push('/geracoes/' + nome);
     }
     const item = { id, quando: t.quando, modelo: t.modelo, prompt: t.prompt, quadro: t.ref, imagens };
+    if (t.rotulo) item.rotulo = t.rotulo;
     const h = await lerHist(env);
     h.unshift(item);
     await env.DADOS.put('hist', JSON.stringify(h.slice(0, 80)));

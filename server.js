@@ -161,7 +161,7 @@ async function api(req, res, url) {
   }
 
   if (rota === '/api/gerar' && req.method === 'POST') {
-    const { modelo, prompt, imagem, proporcao, opcoes } = await lerCorpo(req);
+    const { modelo, prompt, imagem, proporcao, opcoes, rotulo } = await lerCorpo(req);
     const M = MODELOS[modelo];
     if (!M) return json(res, 400, { erro: 'Modelo desconhecido.' });
     if (!prompt || !String(prompt).trim()) return json(res, 400, { erro: 'Escreva o prompt da cena.' });
@@ -174,7 +174,8 @@ async function api(req, res, url) {
     const r = await magnific(M.caminho, { metodo: 'POST', corpo: M.corpo({ prompt: String(prompt), b64: m[2], proporcao: Number(proporcao) || 16 / 9, opcoes: opcoes || {} }) });
     const tarefa = r?.data?.task_id;
     if (!tarefa) return json(res, 502, { erro: 'O Magnific não devolveu o número da tarefa.' });
-    tarefas.set(id, { modelo, tarefa, prompt: String(prompt), ref: '/geracoes/' + ref, quando: new Date().toISOString() });
+    // rotulo: nome do plano, quando o pedido vem do lote; aparece junto da imagem na galeria
+    tarefas.set(id, { modelo, tarefa, prompt: String(prompt), ref: '/geracoes/' + ref, quando: new Date().toISOString(), rotulo: typeof rotulo === 'string' ? rotulo.trim().slice(0, 80) : '' });
     return json(res, 200, { id });
   }
 
@@ -197,6 +198,7 @@ async function api(req, res, url) {
       const imagens = [];
       for (let i = 0; i < urls.length; i++) imagens.push(await baixar(urls[i], `${id}-${i + 1}`));
       const item = { id, quando: t.quando, modelo: t.modelo, prompt: t.prompt, quadro: t.ref, imagens };
+      if (t.rotulo) item.rotulo = t.rotulo;
       const h = lerHist(); h.unshift(item); gravarHist(h);
       t.pronto = { status: 'COMPLETED', item };
       return json(res, 200, t.pronto);

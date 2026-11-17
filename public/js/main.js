@@ -432,6 +432,7 @@ function renderGer() {
       el('div', { id: 'chkManual' }, check('Editar o prompt à mão', g.manual != null, (v) => { E.ger.manual = v ? promptAtual() : null; renderGer(); })),
       el('p', { class: 'nota', id: 'avisoManual' }, g.manual != null ? 'Você está editando à mão: o prompt para de acompanhar a câmera. Se mudar a cena, os personagens ou o estilo, ele volta ao automático.' : '')),
     el('button', { id: 'btGerar', class: 'primario', style: { width: '100%', padding: '9px' }, disabled: gerando, onclick: gerar }, gerando ? 'Gerando…' : semServidor ? 'Baixar quadro e copiar prompt' : 'Gerar imagem'),
+    semServidor ? null : el('button', { id: 'btLote', style: { width: '100%', marginTop: '6px' }, onclick: abrirLote, title: 'Gera de uma vez uma imagem para cada plano salvo' }, rotuloLote()),
     fila(botao('Baixar quadro', baixarQuadro, '', 'PNG do enquadramento, sem grade nem guias'), botao('Copiar prompt', async () => { await navigator.clipboard.writeText(promptAtual()); N.aviso('Prompt copiado.'); })),
     el('div', { id: 'estadoGer' }, semServidor ? AVISO_ESTATICO : temChave ? '' : 'Falta ligar o Magnific: clique em "Magnific" no topo e cole a chave da API.'),
     el('p', { class: 'nota versao' }, 'Versão do app: ' + ((document.querySelector('meta[name=versao]') || {}).content || 'local')),
@@ -474,6 +475,228 @@ async function gerar() {
     if (e.codigo === 'sem_chave' || (e.status === 401 && e.codigo !== 'senha')) { temChave = e.status === 401 ? temChave : false; estado(e.status === 401 ? 'O Magnific recusou a chave. Confira a chave no botão "Magnific".' : e.message, 'erro'); }
     else estado(e.message, 'erro');
   }
+}
+
+// ---------- gerar em lote ----------
+// Uma imagem por enquadramento marcado (os planos salvos e, se quiser, o atual), todas com a descrição de cena,
+// o estilo e o modelo da aba Gerar. Os quadros são capturados de uma vez, antes de o primeiro pedido sair;
+// depois os pedidos andam de três em três e a cena fica livre para continuar sendo mexida.
+const LOTE_JUNTOS = 3, LOTE_MAXIMO = 40;
+const dlgLote = $('#dlgLote');
+let lote = null; // { itens: [{ nome, mini, dados, imagens, estado, seg, erro, item }], rodando, parar, aviso }
+const escolha = { marcados: new Set(), porPlano: 1, miniAtual: '' };
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+function contarLote() {
+  const c = { total: 0, prontas: 0, falhas: 0, fila: 0 };
+  for (const j of lote ? lote.itens : []) {
+    c.total += j.imagens;
+    if (j.estado === 'pronta') c.prontas += j.imagens;
+    else if (j.estado === 'falhou') c.falhas += j.imagens;
+    else if (j.estado === 'fila') c.fila += j.imagens;
+  }
+  return c;
+}
+function rotuloLote() {
+  if (!lote || !lote.rodando) return 'Gerar em lote…';
+  const c = contarLote();
+  return `Lote em andamento: ${c.prontas} de ${c.total}`;
+}
+function opcoesLote() {
+  return [{ id: 'atual', nome: 'Enquadramento atual', mini: escolha.miniAtual }, ...E.planos.map((p) => ({ id: p.id, nome: p.nome, mini: p.mini }))];
+}
+function abrirLote() {
+  if (semServidor) return N.aviso(AVISO_ESTATICO, false, 9000);
+  pararNarracao();
+  if (!lote) {
+    // entra marcado o que já está salvo na tira de planos; sem plano salvo, entra o enquadramento atual
+    const ids = E.planos.map((p) => p.id);
+    escolha.marcados = new Set(ids.length ? ids : ['atual']);
+    escolha.miniAtual = N.capturar(320, 0.8);
+  }
+  renderLote();
+  if (!dlgLote.open) dlgLote.showModal();
+}
+function totalLote() {
+  const g = E.ger, n = escolha.marcados.size, total = n * escolha.porPlano;
+  const semTexto = !g.texto.trim() && g.manual == null;
+  const t = $('#loteTotal'), b = $('#btComecarLote');
+  if (!t || !b) return;
+  const impede = semTexto || !total || total > LOTE_MAXIMO;
+  t.className = semTexto || total > LOTE_MAXIMO ? 'erro' : '';
+  t.textContent = semTexto ? 'Escreva como é a cena na aba Gerar antes de montar o lote.'
+    : !total ? 'Marque pelo menos um enquadramento.'
+    : total > LOTE_MAXIMO ? `São ${total} imagens e o lote vai até ${LOTE_MAXIMO} por vez. Desmarque alguns planos ou diminua as imagens por plano.`
+    : `${plural(n, 'enquadramento', 'enquadramentos')} × ${escolha.porPlano} = ${plural(total, 'imagem', 'imagens')}. Cada imagem gasta crédito do Magnific.`;
+  b.disabled = impede;
+  b.textContent = impede ? 'Gerar' : `Gerar ${plural(total, 'imagem', 'imagens')}`;
+}
+function renderLote() {
+  const corpo = $('#loteCorpo');
+  if (lote) return renderAndamento(corpo);
+  delete corpo.dataset.assinatura;
+  const opcoes = opcoesLote();
+  for (const id of [...escolha.marcados]) if (!opcoes.some((o) => o.id === id)) escolha.marcados.delete(id);
+  const marcar = (todos) => { escolha.marcados = new Set(todos ? opcoes.map((o) => o.id) : []); renderLote(); };
+  por(corpo,
+    el('p', null, `Gera uma imagem para cada enquadramento marcado, com a descrição de cena, o estilo e o modelo que estão na aba Gerar (${modeloAtual().nome}).`),
+    E.planos.length ? null : nota('Para gerar vários enquadramentos de uma vez, guarde cada um em "＋ Salvar plano", na tira abaixo do quadro. Sem plano salvo, o lote serve para tirar várias versões do enquadramento atual.'),
+    el('div', { class: 'lote-lista' }, opcoes.map((o) => el('label', { class: 'lote-item' },
+      el('input', { type: 'checkbox', checked: escolha.marcados.has(o.id), onchange: (e) => { if (e.target.checked) escolha.marcados.add(o.id); else escolha.marcados.delete(o.id); totalLote(); } }),
+      el('img', { src: o.mini, alt: '' }), el('span', { class: 'nome' }, o.nome)))),
+    opcoes.length > 2 ? fila(botao('Marcar todos', () => marcar(true)), botao('Desmarcar todos', () => marcar(false))) : null,
+    seletor('Por plano', [[1, '1 imagem'], [2, '2 imagens'], [3, '3 imagens'], [4, '4 imagens']], escolha.porPlano, (v) => { escolha.porPlano = +v; totalLote(); }),
+    E.ger.manual != null ? nota('O prompt editado à mão vale só para o enquadramento atual. Cada plano salvo vai com o prompt automático do próprio enquadramento.') : null,
+    el('p', { id: 'loteTotal' }),
+    el('menu', null, botao('Cancelar', () => dlgLote.close()), el('button', { id: 'btComecarLote', class: 'primario', onclick: comecarLote })));
+  totalLote();
+}
+// Captura o quadro e monta o prompt de cada enquadramento, um atrás do outro, e devolve a câmera para onde estava.
+// Não passa pelo desfazer: a câmera só visita cada plano dentro desta função.
+function montarLote(ids, porPlano) {
+  const g = E.ger, M = modeloAtual(), camOriginal = structuredClone(E.cam);
+  const opcoes = { forca: g.forca, mystic: g.mystic, qualidade: g.qualidade, resolucao: g.resolucao };
+  const itens = [];
+  try {
+    for (const id of ids) {
+      const pl = id === 'atual' ? null : E.planos.find((x) => x.id === id);
+      if (id !== 'atual' && !pl) continue;
+      E.cam = pl ? { ...structuredClone(camOriginal), ...structuredClone(pl.cam) } : structuredClone(camOriginal);
+      N.layout(); N.aplicarCamera();
+      const prompt = pl ? montarPrompt(N.resumoCena(), { texto: g.texto, estilo: g.estilo, modo: M.modo, tecnico: g.tecnico, legivel: g.legivel !== false }) : promptAtual();
+      const base = { modelo: g.modelo, prompt, imagem: N.capturar(1536, 0.92, 'image/jpeg', g.legivel !== false), proporcao: E.cam.proporcao };
+      const nome = pl ? pl.nome : 'Enquadramento atual', mini = pl ? pl.mini : escolha.miniAtual;
+      // o GPT Image devolve várias imagens num pedido só; nos outros modelos cada imagem é um pedido
+      if (M.id === 'gpt2') itens.push({ nome, mini, imagens: porPlano, estado: 'fila', dados: { ...base, rotulo: nome, opcoes: { ...opcoes, quantidade: porPlano } } });
+      else for (let i = 1; i <= porPlano; i++) {
+        const rotulo = porPlano > 1 ? `${nome} · ${i} de ${porPlano}` : nome;
+        itens.push({ nome: rotulo, mini, imagens: 1, estado: 'fila', dados: { ...base, rotulo, opcoes: { ...opcoes, quantidade: 1 } } });
+      }
+    }
+  } finally {
+    E.cam = camOriginal; N.layout(); N.aplicarCamera(); H.cam();
+  }
+  return itens;
+}
+// Na versão hospedada, confere a senha de acesso uma vez antes de sair o primeiro pedido (em vez de perguntar três vezes).
+async function liberarLote() {
+  if (!temChave) { dlgLote.close(); abrirChave(); return false; }
+  if (hospedado) await comAcesso(() => api.historico());
+  return true;
+}
+async function comecarLote() {
+  const ids = opcoesLote().map((o) => o.id).filter((id) => escolha.marcados.has(id));
+  if (!ids.length) return;
+  try { if (!(await liberarLote())) return; }
+  catch (e) { const t = $('#loteTotal'); if (t) { t.className = 'erro'; t.textContent = e.message; } return; }
+  lote = { itens: montarLote(ids, escolha.porPlano), rodando: false, parar: false, aviso: '' };
+  renderLote();
+  rodarLote();
+}
+async function retomarLote(incluirFalhas) {
+  if (!lote || lote.rodando) return;
+  try { if (!(await liberarLote())) return; }
+  catch (e) { lote.aviso = e.message; return atualizarLote(); }
+  if (incluirFalhas) for (const j of lote.itens) if (j.estado === 'falhou') { j.estado = 'fila'; j.erro = ''; }
+  rodarLote();
+}
+function novoLote() {
+  lote = null;
+  escolha.miniAtual = N.capturar(320, 0.8);
+  atualizarLote();
+}
+async function rodarLote() {
+  const L = lote;
+  if (!L || L.rodando) return;
+  L.rodando = true; L.parar = false; L.aviso = '';
+  let recusas = 0;
+  atualizarLote();
+  const um = async () => {
+    for (;;) {
+      const j = L.parar ? null : L.itens.find((x) => x.estado === 'fila');
+      if (!j) return;
+      j.estado = 'enviando'; j.seg = 0; j.erro = ''; atualizarLote();
+      let saiu = false;
+      try {
+        const id = await api.enviar(j.dados);
+        saiu = true; recusas = 0;
+        j.estado = 'gerando'; atualizarLote();
+        j.item = await api.acompanhar(id, (seg) => { j.seg = seg; atualizarLote(); });
+        j.estado = 'pronta';
+        if (!historico.some((h) => h.id === j.item.id)) historico.unshift(j.item);
+        renderGer();
+      } catch (e) {
+        const semChave = e.codigo === 'sem_chave', semSenha = e.status === 401 && e.codigo === 'senha', chaveRecusada = e.status === 401 && !semSenha;
+        if (!saiu && (semChave || semSenha || chaveRecusada)) {
+          // sem chave ou sem senha nenhum pedido passa: este volta para a fila e o lote para, esperando o conserto
+          j.estado = 'fila';
+          L.parar = true;
+          if (semChave) { temChave = false; marcarChave(); }
+          L.aviso = semChave ? 'Falta a chave do Magnific. Cole a chave no botão "Magnific" do topo e continue o lote.'
+            : chaveRecusada ? 'O Magnific recusou a chave. Confira a chave no botão "Magnific" do topo e continue o lote.'
+            : 'A senha de acesso não foi aceita. Continue o lote para informar de novo.';
+        } else {
+          j.estado = 'falhou'; j.erro = e.message || 'Não deu certo.';
+          if (!saiu && ++recusas >= 3 && !L.parar) { L.parar = true; L.aviso = 'Três pedidos seguidos foram recusados, então o lote parou. O motivo está em cada linha.'; }
+        }
+      }
+      atualizarLote();
+    }
+  };
+  await Promise.all(Array.from({ length: LOTE_JUNTOS }, um));
+  L.rodando = false;
+  if (lote !== L) return;
+  atualizarLote(); renderGer();
+  const c = contarLote();
+  const partes = [`${c.prontas} de ${plural(c.total, 'imagem pronta', 'imagens prontas')}`];
+  if (c.falhas) partes.push(plural(c.falhas, 'falhou', 'falharam'));
+  if (c.fila) partes.push(plural(c.fila, 'não saiu', 'não saíram'));
+  N.aviso(`Lote ${c.fila ? 'parado' : 'terminado'}: ${partes.join(', ')}.`, c.falhas + c.fila > 0, 9000);
+}
+function textoDoEstado(j) {
+  if (j.estado === 'pronta') return j.imagens > 1 ? `${j.item.imagens.length} prontas` : 'pronta';
+  if (j.estado === 'falhou') return j.erro;
+  if (j.estado === 'gerando') return j.seg ? `gerando… ${j.seg}s` : 'gerando…';
+  if (j.estado === 'enviando') return 'enviando…';
+  return lote && !lote.rodando ? 'não saiu' : 'na fila';
+}
+function atualizarLote() {
+  const b = $('#btLote'); if (b) b.textContent = rotuloLote();
+  if (dlgLote.open) renderLote();
+}
+function renderAndamento(corpo) {
+  const L = lote, c = contarLote();
+  // enquanto só os segundos andam, troca o texto de cada linha no lugar; a janela só é refeita quando algum estado muda
+  const assinatura = [L.rodando, L.parar, L.aviso, ...L.itens.map((j) => j.estado)].join('|');
+  if (corpo.dataset.assinatura === assinatura) {
+    $$('.lote-item .est', corpo).forEach((n, i) => { n.textContent = textoDoEstado(L.itens[i]); });
+    return;
+  }
+  const lista = $('.lote-lista', corpo), topo = lista ? lista.scrollTop : 0;
+  const resumo = [`${c.prontas} de ${plural(c.total, 'imagem pronta', 'imagens prontas')}`];
+  if (c.falhas) resumo.push(plural(c.falhas, 'falhou', 'falharam'));
+  if (!L.rodando && c.fila) resumo.push(plural(c.fila, 'não saiu', 'não saíram'));
+  const linha = (j) => {
+    const dentro = [el('img', { src: j.estado === 'pronta' ? j.item.imagens[0] : j.mini, alt: '' }), el('span', { class: 'nome' }, j.nome), el('span', { class: 'est' }, textoDoEstado(j))];
+    return j.estado === 'pronta'
+      ? el('button', { class: 'lote-item sem pronta', title: 'Abrir a imagem', onclick: () => abrirImagem(j.item, j.item.imagens[0]) }, dentro)
+      : el('div', { class: 'lote-item sem ' + j.estado }, dentro);
+  };
+  por(corpo,
+    el('p', { id: 'loteResumo', class: L.rodando ? 'girando' : '' }, resumo.join(' · ')),
+    L.aviso ? el('p', { class: 'erro' }, L.aviso) : null,
+    el('div', { class: 'lote-lista' }, L.itens.map(linha)),
+    nota(L.rodando ? 'Deixe esta aba do navegador aberta até o lote terminar. Dá para fechar esta janela e continuar mexendo na cena: o lote usa os quadros que já foram capturados.'
+      : hospedado ? 'As imagens prontas ficaram na galeria da aba Gerar.' : 'As imagens prontas ficaram na galeria da aba Gerar e na pasta "geracoes".'),
+    el('menu', null, L.rodando
+      ? [botao('Fechar janela', () => dlgLote.close()),
+        el('button', { class: 'perigo', disabled: L.parar, onclick: () => { L.parar = true; atualizarLote(); }, title: 'Não envia mais pedidos. Os que já saíram vão até o fim.' }, L.parar ? 'Parando…' : 'Parar o lote')]
+      : [c.fila ? botao('Continuar o lote', () => retomarLote(false)) : null,
+        c.falhas ? botao('Tentar de novo as que falharam', () => retomarLote(true)) : null,
+        botao('Novo lote', novoLote),
+        botao('Fechar', () => dlgLote.close(), 'primario')]));
+  corpo.dataset.assinatura = assinatura;
+  const nova = $('.lote-lista', corpo); if (nova) nova.scrollTop = topo;
 }
 
 // ---------- narração por voz ----------
@@ -600,7 +823,7 @@ let imgAtual = null;
 function abrirImagem(h, src) {
   imgAtual = { h, src, ver: 'gerada' };
   $('#imgPrompt').textContent = h.prompt;
-  $('#imgMeta').textContent = `${(MODELOS.find((m) => m.id === h.modelo) || { nome: h.modelo }).nome} · ${new Date(h.quando).toLocaleString('pt-BR')}`;
+  $('#imgMeta').textContent = `${h.rotulo ? h.rotulo + ' · ' : ''}${(MODELOS.find((m) => m.id === h.modelo) || { nome: h.modelo }).nome} · ${new Date(h.quando).toLocaleString('pt-BR')}`;
   $('#imgBaixar').href = src;
   mostrarVer();
   if (!dlgImg.open) dlgImg.showModal();

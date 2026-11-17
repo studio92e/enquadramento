@@ -90,17 +90,27 @@ export const api = {
   salvarChave: (chave) => pedir('api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chave }) }),
   historico: () => pedir('api/historico'),
   melhorar: (texto) => pedir('api/melhorar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto, idioma: 'pt' }) }),
-  async gerar(dados, aoAndar) {
-    const { id } = await pedir('api/gerar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) });
+  // Gerar tem dois tempos: enviar (o Magnific aceita o pedido) e acompanhar até a imagem chegar.
+  // O lote usa os dois separados para saber em qual deles um pedido parou.
+  enviar: async (dados) => (await pedir('api/gerar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) })).id,
+  async acompanhar(id, aoAndar) {
     const inicio = Date.now();
+    let tropecos = 0;
     for (;;) {
       await new Promise((ok) => setTimeout(ok, 2500));
-      const t = await pedir('api/tarefa/' + id);
       const seg = Math.round((Date.now() - inicio) / 1000);
+      let t;
+      try { t = await pedir('api/tarefa/' + id); tropecos = 0; }
+      catch (e) {
+        // queda de conexão ou erro passageiro do servidor: o pedido já saiu, então insiste antes de desistir da imagem
+        if ((e.status && e.status < 500) || ++tropecos >= 5 || seg > 420) throw e;
+        continue;
+      }
       if (t.status === 'COMPLETED') return t.item;
       if (t.status === 'FAILED') throw new Error(t.erro || 'A geração falhou.');
       aoAndar && aoAndar(seg);
       if (seg > 420) throw new Error('O Magnific demorou mais de 7 minutos. Tente de novo.');
     }
   },
+  async gerar(dados, aoAndar) { return api.acompanhar(await api.enviar(dados), aoAndar); },
 };
